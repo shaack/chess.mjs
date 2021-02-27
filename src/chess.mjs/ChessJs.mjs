@@ -33,7 +33,7 @@
  * https://github.com/jhlywa/chess.js/blob/master/LICENSE
  */
 
-var ChessJs = function(fen) {
+var Chess = function(fen) {
     var BLACK = 'b'
     var WHITE = 'w'
 
@@ -1741,11 +1741,11 @@ var ChessJs = function(fen) {
 
 /* export Chess object if using node or any other CommonJS compatible
  * environment */
-if (typeof exports !== 'undefined') exports.Chess = ChessJs
+if (typeof exports !== 'undefined') exports.Chess = Chess
 /* export Chess object for any RequireJS compatible environment */
 if (typeof define !== 'undefined')
     define(function() {
-        return ChessJs
+        return Chess
     })
 
 /**
@@ -1753,5 +1753,5 @@ if (typeof define !== 'undefined')
  * chess.js must be included in the HTML.
  * The API of ChessJs will be the same as of chess.js
  */
-export class ChessJs extends ChessJs {
+export class ChessJs extends Chess {
 }
