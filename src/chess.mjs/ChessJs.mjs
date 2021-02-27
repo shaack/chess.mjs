@@ -1750,7 +1750,6 @@ if (typeof define !== 'undefined')
 
 /**
  * ES6 Wrapper for chess.js
- * chess.js must be included in the HTML.
  * The API of ChessJs will be the same as of chess.js
  */
 export class ChessJs extends Chess {
