@@ -1752,5 +1752,4 @@ if (typeof define !== 'undefined')
  * ES6 Wrapper for chess.js
  * The API of ChessJs will be the same as of chess.js
  */
-export class ChessJs extends Chess {
-}
+export { Chess }
