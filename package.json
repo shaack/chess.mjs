@@ -5,7 +5,7 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js"
   },
   "repository": {
     "type": "git",
@@ -22,5 +22,12 @@
   "bugs": {
     "url": "https://github.com/shaack/chess.mjs/issues"
   },
-  "homepage": "https://github.com/shaack/chess.mjs#readme"
+  "homepage": "https://github.com/shaack/chess.mjs#readme",
+  "devDependencies": {
+    "jest": "^29.5.0"
+  },
+  "jest": {
+    "transform": {},
+    "testEnvironment": "node"
+  }
 }

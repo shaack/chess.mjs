@@ -116,7 +116,20 @@ const SQUARE_MAP = {
     a1: 112, b1: 113, c1: 114, d1: 115, e1: 116, f1: 117, g1: 118, h1: 119
 };
 
-const ROOKS = {
+// Default rook positions for standard chess
+const DEFAULT_ROOKS = {
+    w: [
+        { square: SQUARE_MAP.a1, flag: BITS.QSIDE_CASTLE },
+        { square: SQUARE_MAP.h1, flag: BITS.KSIDE_CASTLE },
+    ],
+    b: [
+        { square: SQUARE_MAP.a8, flag: BITS.QSIDE_CASTLE },
+        { square: SQUARE_MAP.h8, flag: BITS.KSIDE_CASTLE },
+    ],
+}
+
+// Rook positions, will be updated for chess960
+var ROOKS = {
     w: [
         { square: SQUARE_MAP.a1, flag: BITS.QSIDE_CASTLE },
         { square: SQUARE_MAP.h1, flag: BITS.KSIDE_CASTLE },
@@ -289,7 +302,7 @@ export const FLAGS = {
     QSIDE_CASTLE: 'q',
 }
 
-export const Chess = function (fen) {
+export const Chess = function (fen, chess960_mode) {
     var board = new Array(128)
     var kings = { w: EMPTY, b: EMPTY }
     var turn = WHITE
@@ -300,6 +313,7 @@ export const Chess = function (fen) {
     var history = []
     var header = {}
     var comments = {}
+    var chess960 = chess960_mode || false
 
     /* if the user passes in a fen string, load it, else default to
      * starting position
@@ -347,8 +361,112 @@ export const Chess = function (fen) {
         comments = current_comments
     }
 
-    function reset() {
-        load(DEFAULT_POSITION)
+    function generate_chess960_position(position_id) {
+        // Special case for position 518 which is the standard chess position
+        if (position_id === 518) {
+            return DEFAULT_POSITION
+        }
+
+        // If position_id is provided, use it, otherwise generate a random one
+        if (position_id === undefined) {
+            position_id = Math.floor(Math.random() * 960)
+        }
+
+        // Generate the position from the position_id
+        // Algorithm from https://en.wikipedia.org/wiki/Fischer_random_chess_numbering_scheme
+
+        // Place bishops
+        var bishop1 = position_id % 4
+        var bishop2 = Math.floor(position_id / 4) % 4
+
+        // Adjust bishop2 to ensure bishops are on opposite colors
+        bishop2 = bishop2 * 2 + (1 - bishop1 % 2)
+
+        // Place queen
+        var queen = Math.floor(position_id / 16) % 6
+
+        // Adjust queen position to account for bishops
+        if (queen >= bishop1) queen++
+        if (queen >= bishop2) queen++
+
+        // Place knights
+        var knight_pos = Math.floor(position_id / 96)
+        var free_squares = [0, 1, 2, 3, 4, 5, 6, 7]
+
+        // Remove occupied squares
+        free_squares.splice(bishop1, 1)
+        free_squares.splice(bishop2 - (bishop2 > bishop1 ? 1 : 0), 1)
+        free_squares.splice(queen - (queen > bishop1 ? 1 : 0) - (queen > bishop2 ? 1 : 0), 1)
+
+        // Place knights
+        // There are 5 free squares for the first knight (5 possibilities)
+        var knight1_idx = knight_pos % 5
+        var knight1 = free_squares[knight1_idx]
+        free_squares.splice(knight1_idx, 1)
+
+        // There are 4 free squares for the second knight (4 possibilities)
+        var knight2_idx = Math.floor(knight_pos / 5) % 4
+        var knight2 = free_squares[knight2_idx]
+        free_squares.splice(knight2_idx, 1)
+
+        // Place rooks and king
+        // Sort the remaining free squares
+        free_squares.sort(function(a, b) { return a - b })
+
+        // In Chess960, the king must be between the two rooks
+        var rook1 = free_squares[0]
+        var king = free_squares[1]
+        var rook2 = free_squares[2]
+
+        // Ensure king is between rooks
+        if (!(rook1 < king && king < rook2)) {
+            // If not, rearrange them
+            if (rook1 > king) {
+                // If rook1 is to the right of the king, swap them
+                var temp = rook1
+                rook1 = king
+                king = temp
+            }
+            if (king > rook2) {
+                // If king is to the right of rook2, swap them
+                var temp = rook2
+                rook2 = king
+                king = temp
+            }
+        }
+
+        // Create the position string
+        var pieces = new Array(8)
+        pieces[bishop1] = 'b'
+        pieces[bishop2] = 'b'
+        pieces[queen] = 'q'
+        pieces[knight1] = 'n'
+        pieces[knight2] = 'n'
+        pieces[rook1] = 'r'
+        pieces[king] = 'k'
+        pieces[rook2] = 'r'
+
+        var position = pieces.join('')
+        return position + '/pppppppp/8/8/8/8/PPPPPPPP/' + position.toUpperCase()  + ' w KQkq - 0 1'
+    }
+
+    function reset(use_chess960) {
+        if (use_chess960) {
+            // Set chess960 mode to true
+            chess960 = true
+
+            // If use_chess960 is a number, use it as the position ID
+            if (typeof use_chess960 === 'number') {
+                load(generate_chess960_position(use_chess960))
+            } else {
+                // Otherwise generate a random position
+                load(generate_chess960_position())
+            }
+        } else {
+            // Set chess960 mode to false
+            chess960 = false
+            load(DEFAULT_POSITION)
+        }
     }
 
     function load(fen, keep_headers) {
@@ -398,6 +516,57 @@ export const Chess = function (fen) {
         ep_square = tokens[3] === '-' ? EMPTY : SQUARE_MAP[tokens[3]]
         half_moves = parseInt(tokens[4], 10)
         move_number = parseInt(tokens[5], 10)
+
+        // In Chess960, we need to update the rook positions based on the initial position
+        if (chess960) {
+            // Reset ROOKS to default
+            ROOKS = JSON.parse(JSON.stringify(DEFAULT_ROOKS))
+
+            // Find the king and rook positions for white
+            var white_king_square = EMPTY
+            var white_rooks = []
+
+            // Find the king and rook positions for black
+            var black_king_square = EMPTY
+            var black_rooks = []
+
+            // Scan the board to find kings and rooks
+            for (var i = 0; i < 128; i++) {
+                if (i & 0x88) continue
+
+                var piece = board[i]
+                if (!piece) continue
+
+                if (piece.type === KING) {
+                    if (piece.color === WHITE) {
+                        white_king_square = i
+                    } else {
+                        black_king_square = i
+                    }
+                } else if (piece.type === ROOK) {
+                    if (piece.color === WHITE) {
+                        white_rooks.push(i)
+                    } else {
+                        black_rooks.push(i)
+                    }
+                }
+            }
+
+            // Sort rooks by file (left to right)
+            white_rooks.sort(function(a, b) { return a - b })
+            black_rooks.sort(function(a, b) { return a - b })
+
+            // Update ROOKS with the actual positions
+            if (white_rooks.length >= 2) {
+                ROOKS.w[0].square = white_rooks[0]
+                ROOKS.w[1].square = white_rooks[white_rooks.length - 1]
+            }
+
+            if (black_rooks.length >= 2) {
+                ROOKS.b[0].square = black_rooks[0]
+                ROOKS.b[1].square = black_rooks[black_rooks.length - 1]
+            }
+        }
 
         update_setup(generate_fen())
 
@@ -772,15 +941,68 @@ export const Chess = function (fen) {
                 if (castling[us] & BITS.KSIDE_CASTLE) {
                     var castling_from = kings[us]
                     var castling_to = castling_from + 2
+                    var rook_square = ROOKS[us][1].square
 
-                    if (
-                        board[castling_from + 1] == null &&
-                        board[castling_to] == null &&
-                        !attacked(them, kings[us]) &&
-                        !attacked(them, castling_from + 1) &&
-                        !attacked(them, castling_to)
-                    ) {
-                        add_move(board, moves, kings[us], castling_to, BITS.KSIDE_CASTLE)
+                    if (chess960) {
+                        // In Chess960, we need to check all squares between the king and rook
+                        var king_to = file(castling_from) < 6 ? SQUARE_MAP.g1 + (us === BLACK ? 112 : 0) : castling_from;
+                        var rook_to = file(castling_from) < 6 ? SQUARE_MAP.f1 + (us === BLACK ? 112 : 0) : rook_square;
+
+                        // Check if squares between king and rook are clear
+                        var clear_path = true;
+                        var min_square = Math.min(castling_from, rook_square);
+                        var max_square = Math.max(castling_from, rook_square);
+
+                        for (var i = min_square + 1; i < max_square; i++) {
+                            if (board[i] != null) {
+                                clear_path = false;
+                                break;
+                            }
+                        }
+
+                        // Check if squares between king's destination and rook's destination are clear
+                        var min_dest = Math.min(king_to, rook_to);
+                        var max_dest = Math.max(king_to, rook_to);
+
+                        for (var i = min_dest; i <= max_dest; i++) {
+                            if (i !== castling_from && i !== rook_square && board[i] != null) {
+                                clear_path = false;
+                                break;
+                            }
+                        }
+
+                        // Check if king's path is not under attack
+                        var safe_passage = true;
+                        if (king_to > castling_from) {
+                            for (var i = castling_from; i <= king_to; i++) {
+                                if (attacked(them, i)) {
+                                    safe_passage = false;
+                                    break;
+                                }
+                            }
+                        } else {
+                            for (var i = king_to; i <= castling_from; i++) {
+                                if (attacked(them, i)) {
+                                    safe_passage = false;
+                                    break;
+                                }
+                            }
+                        }
+
+                        if (clear_path && safe_passage) {
+                            add_move(board, moves, kings[us], king_to, BITS.KSIDE_CASTLE)
+                        }
+                    } else {
+                        // Standard chess castling
+                        if (
+                            board[castling_from + 1] == null &&
+                            board[castling_to] == null &&
+                            !attacked(them, kings[us]) &&
+                            !attacked(them, castling_from + 1) &&
+                            !attacked(them, castling_to)
+                        ) {
+                            add_move(board, moves, kings[us], castling_to, BITS.KSIDE_CASTLE)
+                        }
                     }
                 }
 
@@ -788,16 +1010,69 @@ export const Chess = function (fen) {
                 if (castling[us] & BITS.QSIDE_CASTLE) {
                     var castling_from = kings[us]
                     var castling_to = castling_from - 2
+                    var rook_square = ROOKS[us][0].square
 
-                    if (
-                        board[castling_from - 1] == null &&
-                        board[castling_from - 2] == null &&
-                        board[castling_from - 3] == null &&
-                        !attacked(them, kings[us]) &&
-                        !attacked(them, castling_from - 1) &&
-                        !attacked(them, castling_to)
-                    ) {
-                        add_move(board, moves, kings[us], castling_to, BITS.QSIDE_CASTLE)
+                    if (chess960) {
+                        // In Chess960, we need to check all squares between the king and rook
+                        var king_to = file(castling_from) > 2 ? SQUARE_MAP.c1 + (us === BLACK ? 112 : 0) : castling_from;
+                        var rook_to = file(castling_from) > 2 ? SQUARE_MAP.d1 + (us === BLACK ? 112 : 0) : rook_square;
+
+                        // Check if squares between king and rook are clear
+                        var clear_path = true;
+                        var min_square = Math.min(castling_from, rook_square);
+                        var max_square = Math.max(castling_from, rook_square);
+
+                        for (var i = min_square + 1; i < max_square; i++) {
+                            if (board[i] != null) {
+                                clear_path = false;
+                                break;
+                            }
+                        }
+
+                        // Check if squares between king's destination and rook's destination are clear
+                        var min_dest = Math.min(king_to, rook_to);
+                        var max_dest = Math.max(king_to, rook_to);
+
+                        for (var i = min_dest; i <= max_dest; i++) {
+                            if (i !== castling_from && i !== rook_square && board[i] != null) {
+                                clear_path = false;
+                                break;
+                            }
+                        }
+
+                        // Check if king's path is not under attack
+                        var safe_passage = true;
+                        if (king_to < castling_from) {
+                            for (var i = king_to; i <= castling_from; i++) {
+                                if (attacked(them, i)) {
+                                    safe_passage = false;
+                                    break;
+                                }
+                            }
+                        } else {
+                            for (var i = castling_from; i <= king_to; i++) {
+                                if (attacked(them, i)) {
+                                    safe_passage = false;
+                                    break;
+                                }
+                            }
+                        }
+
+                        if (clear_path && safe_passage) {
+                            add_move(board, moves, kings[us], king_to, BITS.QSIDE_CASTLE)
+                        }
+                    } else {
+                        // Standard chess castling
+                        if (
+                            board[castling_from - 1] == null &&
+                            board[castling_from - 2] == null &&
+                            board[castling_from - 3] == null &&
+                            !attacked(them, kings[us]) &&
+                            !attacked(them, castling_from - 1) &&
+                            !attacked(them, castling_to)
+                        ) {
+                            add_move(board, moves, kings[us], castling_to, BITS.QSIDE_CASTLE)
+                        }
                     }
                 }
             }
@@ -1059,15 +1334,71 @@ export const Chess = function (fen) {
 
             /* if we castled, move the rook next to the king */
             if (move.flags & BITS.KSIDE_CASTLE) {
-                var castling_to = move.to - 1
-                var castling_from = move.to + 1
-                board[castling_to] = board[castling_from]
-                board[castling_from] = null
+                if (chess960) {
+                    // In Chess960, the king's destination is g1/g8 and the rook's destination is f1/f8
+                    var king_file = file(move.to);
+                    var rook_square = ROOKS[us][1].square;
+
+                    // If the king didn't move to g1/g8, we need to adjust
+                    if (king_file !== 6) { // 'g' file is 6 (0-indexed)
+                        // Standard final positions after castling
+                        var king_to = SQUARE_MAP.g1 + (us === BLACK ? 112 : 0);
+                        var rook_to = SQUARE_MAP.f1 + (us === BLACK ? 112 : 0);
+
+                        // Move the king to g1/g8
+                        board[king_to] = board[move.to];
+                        board[move.to] = null;
+                        kings[us] = king_to;
+
+                        // Move the rook to f1/f8
+                        board[rook_to] = board[rook_square];
+                        board[rook_square] = null;
+                    } else {
+                        // King is already at g1/g8, just move the rook to f1/f8
+                        var rook_to = SQUARE_MAP.f1 + (us === BLACK ? 112 : 0);
+                        board[rook_to] = board[rook_square];
+                        board[rook_square] = null;
+                    }
+                } else {
+                    // Standard chess castling
+                    var castling_to = move.to - 1
+                    var castling_from = move.to + 1
+                    board[castling_to] = board[castling_from]
+                    board[castling_from] = null
+                }
             } else if (move.flags & BITS.QSIDE_CASTLE) {
-                var castling_to = move.to + 1
-                var castling_from = move.to - 2
-                board[castling_to] = board[castling_from]
-                board[castling_from] = null
+                if (chess960) {
+                    // In Chess960, the king's destination is c1/c8 and the rook's destination is d1/d8
+                    var king_file = file(move.to);
+                    var rook_square = ROOKS[us][0].square;
+
+                    // If the king didn't move to c1/c8, we need to adjust
+                    if (king_file !== 2) { // 'c' file is 2 (0-indexed)
+                        // Standard final positions after castling
+                        var king_to = SQUARE_MAP.c1 + (us === BLACK ? 112 : 0);
+                        var rook_to = SQUARE_MAP.d1 + (us === BLACK ? 112 : 0);
+
+                        // Move the king to c1/c8
+                        board[king_to] = board[move.to];
+                        board[move.to] = null;
+                        kings[us] = king_to;
+
+                        // Move the rook to d1/d8
+                        board[rook_to] = board[rook_square];
+                        board[rook_square] = null;
+                    } else {
+                        // King is already at c1/c8, just move the rook to d1/d8
+                        var rook_to = SQUARE_MAP.d1 + (us === BLACK ? 112 : 0);
+                        board[rook_to] = board[rook_square];
+                        board[rook_square] = null;
+                    }
+                } else {
+                    // Standard chess castling
+                    var castling_to = move.to + 1
+                    var castling_from = move.to - 2
+                    board[castling_to] = board[castling_from]
+                    board[castling_from] = null
+                }
             }
 
             /* turn off castling */
@@ -1160,17 +1491,101 @@ export const Chess = function (fen) {
         }
 
         if (move.flags & (BITS.KSIDE_CASTLE | BITS.QSIDE_CASTLE)) {
-            var castling_to, castling_from
-            if (move.flags & BITS.KSIDE_CASTLE) {
-                castling_to = move.to + 1
-                castling_from = move.to - 1
-            } else if (move.flags & BITS.QSIDE_CASTLE) {
-                castling_to = move.to - 2
-                castling_from = move.to + 1
-            }
+            if (chess960) {
+                // In Chess960, we need to restore the original positions of the king and rook
+                var us = turn;
 
-            board[castling_to] = board[castling_from]
-            board[castling_from] = null
+                if (move.flags & BITS.KSIDE_CASTLE) {
+                    // Kingside castling
+                    var king_square = move.from;
+                    var rook_square = ROOKS[us][1].square;
+
+                    // Find the current positions of the king and rook
+                    var king_current, rook_current;
+
+                    // Standard final positions after castling
+                    var king_final = SQUARE_MAP.g1 + (us === BLACK ? 112 : 0);
+                    var rook_final = SQUARE_MAP.f1 + (us === BLACK ? 112 : 0);
+
+                    // Find the pieces
+                    for (var i = 0; i < 128; i++) {
+                        if (i & 0x88) continue;
+
+                        var piece = board[i];
+                        if (!piece) continue;
+
+                        if (piece.type === KING && piece.color === us) {
+                            king_current = i;
+                        } else if (piece.type === ROOK && piece.color === us && 
+                                  (i === rook_final || (file(i) > file(king_final)))) {
+                            rook_current = i;
+                        }
+                    }
+
+                    // Move the king back to its original position
+                    board[king_square] = board[king_current];
+                    if (king_current !== king_square) {
+                        board[king_current] = null;
+                    }
+
+                    // Move the rook back to its original position
+                    board[rook_square] = board[rook_current];
+                    if (rook_current !== rook_square) {
+                        board[rook_current] = null;
+                    }
+                } else if (move.flags & BITS.QSIDE_CASTLE) {
+                    // Queenside castling
+                    var king_square = move.from;
+                    var rook_square = ROOKS[us][0].square;
+
+                    // Find the current positions of the king and rook
+                    var king_current, rook_current;
+
+                    // Standard final positions after castling
+                    var king_final = SQUARE_MAP.c1 + (us === BLACK ? 112 : 0);
+                    var rook_final = SQUARE_MAP.d1 + (us === BLACK ? 112 : 0);
+
+                    // Find the pieces
+                    for (var i = 0; i < 128; i++) {
+                        if (i & 0x88) continue;
+
+                        var piece = board[i];
+                        if (!piece) continue;
+
+                        if (piece.type === KING && piece.color === us) {
+                            king_current = i;
+                        } else if (piece.type === ROOK && piece.color === us && 
+                                  (i === rook_final || (file(i) < file(king_final)))) {
+                            rook_current = i;
+                        }
+                    }
+
+                    // Move the king back to its original position
+                    board[king_square] = board[king_current];
+                    if (king_current !== king_square) {
+                        board[king_current] = null;
+                    }
+
+                    // Move the rook back to its original position
+                    board[rook_square] = board[rook_current];
+                    if (rook_current !== rook_square) {
+                        board[rook_current] = null;
+                    }
+                }
+            } else {
+                // Standard chess castling
+                var castling_to, castling_from
+                if (move.flags & BITS.KSIDE_CASTLE) {
+                    castling_to = move.to + 1
+                    castling_from = move.to - 1
+                } else if (move.flags & BITS.QSIDE_CASTLE) {
+                    castling_to = move.to - 2
+                    castling_from = move.to + 1
+                }
+
+                board[castling_to] = board[castling_from]
+                board[castling_from] = null
+            }
         }
 
         return move
@@ -1344,8 +1759,31 @@ export const Chess = function (fen) {
             return load(fen)
         },
 
-        reset: function () {
-            return reset()
+        reset: function (use_chess960) {
+            return reset(use_chess960)
+        },
+
+        // Chess960 (Fischer Random Chess) methods
+
+        // Get the current chess960 mode
+        chess960: function() {
+            return chess960
+        },
+
+        // Set the chess960 mode
+        setChess960: function(mode) {
+            chess960 = !!mode
+            return chess960
+        },
+
+        // Generate a random chess960 position and reset the board
+        resetChess960: function(position_id) {
+            return reset(position_id !== undefined ? position_id : true)
+        },
+
+        // Generate a chess960 position from a position ID (0-959)
+        generateChess960Position: function(position_id) {
+            return generate_chess960_position(position_id)
         },
 
         moves: function (options) {
