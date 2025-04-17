@@ -361,111 +361,46 @@ export const Chess = function (fen, chess960_mode) {
         comments = current_comments
     }
 
-    function generate_chess960_position(position_id) {
-        // Special case for position 518 which is the standard chess position
-        if (position_id === 518) {
-            return DEFAULT_POSITION
+    function generate_chess960_position(seed) {
+        var cols = [], empty = [0, 1, 2, 3, 4, 5, 6, 7], fullSeed = 960,
+            b1, b2, nn;
+
+        if (seed === undefined) {
+            seed = Math.floor(Math.random() * 960);
+        } else {
+            seed %= 960;
         }
 
-        // If position_id is provided, use it, otherwise generate a random one
-        if (position_id === undefined) {
-            position_id = Math.floor(Math.random() * 960)
+        function rand(range) {
+            fullSeed /= range;
+            var value = Math.floor(seed / fullSeed);
+            seed %= fullSeed;
+            return value;
         }
-
-        // If we're testing with chess960.json, use the FENs from there
-        if (typeof window === 'undefined' && typeof require !== 'undefined') {
-            try {
-                const fs = require('fs');
-                const path = require('path');
-                const chess960Fens = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../test/chess960.json'), 'utf8'));
-
-                // The index in the json is position number
-                if (position_id >= 0 && position_id < 960) {
-                    return chess960Fens[position_id];
-                }
-            } catch (e) {
-                // If there's an error reading the file, fall back to the original implementation
-                console.error("Error reading chess960.json:", e);
-            }
+        function assign(piece, col) {
+            cols[col] = piece;
+            empty.splice(empty.indexOf(col), 1);
         }
-
-        // Generate the position from the position_id
-        // Algorithm from https://en.wikipedia.org/wiki/Fischer_random_chess_numbering_scheme
-
-        // Place bishops
-        var bishop1 = position_id % 4
-        var bishop2 = Math.floor(position_id / 4) % 4
-
-        // Adjust bishop2 to ensure bishops are on opposite colors
-        bishop2 = bishop2 * 2 + (1 - bishop1 % 2)
-
-        // Place queen
-        var queen = Math.floor(position_id / 16) % 6
-
-        // Adjust queen position to account for bishops
-        if (queen >= bishop1) queen++
-        if (queen >= bishop2) queen++
-
-        // Place knights
-        var knight_pos = Math.floor(position_id / 96)
-        var free_squares = [0, 1, 2, 3, 4, 5, 6, 7]
-
-        // Remove occupied squares
-        free_squares.splice(bishop1, 1)
-        free_squares.splice(bishop2 - (bishop2 > bishop1 ? 1 : 0), 1)
-        free_squares.splice(queen - (queen > bishop1 ? 1 : 0) - (queen > bishop2 ? 1 : 0), 1)
-
-        // Place knights
-        // There are 5 free squares for the first knight (5 possibilities)
-        var knight1_idx = knight_pos % 5
-        var knight1 = free_squares[knight1_idx]
-        free_squares.splice(knight1_idx, 1)
-
-        // There are 4 free squares for the second knight (4 possibilities)
-        var knight2_idx = Math.floor(knight_pos / 5) % 4
-        var knight2 = free_squares[knight2_idx]
-        free_squares.splice(knight2_idx, 1)
-
-        // Place rooks and king
-        // Sort the remaining free squares
-        free_squares.sort(function(a, b) { return a - b })
-
-        // In Chess960, the king must be between the two rooks
-        var rook1 = free_squares[0]
-        var king = free_squares[1]
-        var rook2 = free_squares[2]
-
-        // Ensure king is between rooks
-        if (!(rook1 < king && king < rook2)) {
-            // If not, rearrange them
-            if (rook1 > king) {
-                // If rook1 is to the right of the king, swap them
-                var temp = rook1
-                rook1 = king
-                king = temp
-            }
-            if (king > rook2) {
-                // If king is to the right of rook2, swap them
-                var temp = rook2
-                rook2 = king
-                king = temp
-            }
-        }
-
-        // Create the position string
-        var pieces = new Array(8)
-        pieces[bishop1] = 'b'
-        pieces[bishop2] = 'b'
-        pieces[queen] = 'q'
-        pieces[knight1] = 'n'
-        pieces[knight2] = 'n'
-        pieces[rook1] = 'r'
-        pieces[king] = 'k'
-        pieces[rook2] = 'r'
-
-        var position = pieces.join('')
-        return position + '/pppppppp/8/8/8/8/PPPPPPPP/' + position.toUpperCase()  + ' w KQkq - 0 1'
+        b1 = rand(4) * 2;
+        b2 = rand(4) * 2 + 1;
+        assign('B', b1);
+        assign('B', b2);
+        assign('Q', empty[rand(6)]);
+        nn = [ [0, 1], [0, 2], [0, 3], [0, 4], [1, 2],
+            [1, 3], [1, 4], [2, 3], [2, 4], [3, 4]][rand(10)];
+        assign('N', empty[nn[1]]);
+        assign('N', empty[nn[0]]);
+        assign('R', empty[0]);
+        assign('K', empty[0]);
+        assign('R', empty[0]);
+        //return cols;
+        const firstRank =  cols.join("")
+        return `${firstRank.toLowerCase()}/pppppppp/8/8/8/8/PPPPPPPP/${firstRank.toUpperCase()} w KQkq - 0 1`;
     }
+
+        // Full FEN: position, turn, castling, en passant, halfmove, fullmove
+     //   return `${firstRank}/pppppppp/8/8/8/8/PPPPPPPP/${firstRank.toUpperCase()} w ${castling} - 0 1`;
+    //}
 
     function reset(use_chess960) {
         if (use_chess960) {
