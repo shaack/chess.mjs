@@ -2,7 +2,7 @@
   "name": "chess.mjs",
   "version": "1.4.0",
   "description": "It's just the ES6 module version of chess.js",
-  "main": "index.js",
+  "main": "src/Chess.js",
   "type": "module",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
