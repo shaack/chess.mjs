@@ -1,0 +1,22 @@
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>cm-chess tests</title>
+</head>
+<body>
+<script src="https://cdn.jsdelivr.net/npm/es-module-shims@1.7.2/dist/es-module-shims.min.js"></script>
+<script type="importmap">
+    {
+        "imports": {
+            "teevi/": "../node_modules/teevi/"
+        }
+    }
+
+</script>
+<script type="module">
+    import {teevi} from "teevi/src/teevi.js"
+    import "./TestChess.js"
+    teevi.run()
+</script>
+</body>
+</html>

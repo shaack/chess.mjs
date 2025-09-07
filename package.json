@@ -22,5 +22,8 @@
   "bugs": {
     "url": "https://github.com/shaack/chess.mjs/issues"
   },
-  "homepage": "https://github.com/shaack/chess.mjs#readme"
+  "homepage": "https://github.com/shaack/chess.mjs#readme",
+  "devDependencies": {
+    "teevi": "^2.2.4"
+  }
 }
