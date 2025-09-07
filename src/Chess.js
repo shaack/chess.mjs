@@ -289,7 +289,7 @@ export const FLAGS = {
     QSIDE_CASTLE: 'q',
 }
 
-export const Chess = function (fen) {
+export const Chess = function (fen, options) {
     var board = new Array(128)
     var kings = { w: EMPTY, b: EMPTY }
     var turn = WHITE
@@ -301,10 +301,17 @@ export const Chess = function (fen) {
     var header = {}
     var comments = {}
 
+    var isChess960 = !!(options && options.chess960)
+
     /* if the user passes in a fen string, load it, else default to
      * starting position
      */
-    if (typeof fen === 'undefined') {
+    if (typeof fen === 'undefined' || typeof fen === 'object') {
+        // allow calling new Chess({chess960:true})
+        if (typeof fen === 'object' && !options) {
+            options = fen
+            isChess960 = !!(options && options.chess960)
+        }
         load(DEFAULT_POSITION)
     } else {
         load(fen)
@@ -399,6 +406,7 @@ export const Chess = function (fen) {
         half_moves = parseInt(tokens[4], 10)
         move_number = parseInt(tokens[5], 10)
 
+        init_chess960_rooks_if_needed()
         update_setup(generate_fen())
 
         return true
@@ -632,6 +640,37 @@ export const Chess = function (fen) {
         return piece
     }
 
+    function init_chess960_rooks_if_needed() {
+        if (!isChess960) return
+        function set_for(color) {
+            // find king and rooks on back rank
+            var ksq = kings[color]
+            if (ksq === EMPTY) return
+            var rk = rank(ksq)
+            var left_rook = null
+            var right_rook = null
+            for (var f = 0; f < 8; f++) {
+                var sq = (rk << 4) + f
+                var p = board[sq]
+                if (p && p.type === ROOK && p.color === color) {
+                    if (f < file(ksq)) {
+                        left_rook = sq
+                    } else if (f > file(ksq) && right_rook === null) {
+                        right_rook = sq
+                    }
+                }
+            }
+            if (left_rook != null) {
+                ROOKS[color][0].square = left_rook // QSIDE
+            }
+            if (right_rook != null) {
+                ROOKS[color][1].square = right_rook // KSIDE
+            }
+        }
+        set_for(WHITE)
+        set_for(BLACK)
+    }
+
     function build_move(board, from, to, flags, promotion) {
         var move = {
             color: turn,
@@ -768,36 +807,104 @@ export const Chess = function (fen) {
          */
         if (piece_type === true || piece_type === KING) {
             if (!single_square || last_sq === kings[us]) {
-                /* king-side castling */
-                if (castling[us] & BITS.KSIDE_CASTLE) {
-                    var castling_from = kings[us]
-                    var castling_to = castling_from + 2
+                if (isChess960) {
+                    var kFrom = kings[us]
+                    var rankFrom = rank(kFrom)
+                    var kside = castling[us] & BITS.KSIDE_CASTLE
+                    var qside = castling[us] & BITS.QSIDE_CASTLE
 
-                    if (
-                        board[castling_from + 1] == null &&
-                        board[castling_to] == null &&
-                        !attacked(them, kings[us]) &&
-                        !attacked(them, castling_from + 1) &&
-                        !attacked(them, castling_to)
-                    ) {
-                        add_move(board, moves, kings[us], castling_to, BITS.KSIDE_CASTLE)
+                    function path_clear_for_king(to, rookFrom) {
+                        if (to === kFrom) return true // rook-move-only castling: king doesn't move
+                        var step = file(to) > file(kFrom) ? 1 : -1
+                        for (var f = file(kFrom) + step; f != file(to) + step; f += step) {
+                            var sq = (rankFrom << 4) + f
+                            if (sq === rookFrom) continue
+                            if (sq !== kFrom && board[sq] != null) return false
+                        }
+                        return true
                     }
-                }
+                    function king_path_safe(to) {
+                        // king cannot castle out of, through, or into check
+                        if (to === kFrom) {
+                            return !attacked(them, kFrom)
+                        }
+                        var step = file(to) > file(kFrom) ? 1 : -1
+                        if (attacked(them, kFrom)) return false
+                        for (var f = file(kFrom) + step; f != file(to) + step; f += step) {
+                            var sq = (rankFrom << 4) + f
+                            if (attacked(them, sq)) return false
+                        }
+                        return true
+                    }
+                    function path_clear_for_rook(rookFrom, rookTo) {
+                        var step = file(rookTo) > file(rookFrom) ? 1 : -1
+                        for (var f = file(rookFrom) + step; f != file(rookTo) + step; f += step) {
+                            var sq = (rankFrom << 4) + f
+                            if (sq === kFrom) continue
+                            if (board[sq] != null) return false
+                        }
+                        return true
+                    }
 
-                /* queen-side castling */
-                if (castling[us] & BITS.QSIDE_CASTLE) {
-                    var castling_from = kings[us]
-                    var castling_to = castling_from - 2
+                    if (kside) {
+                        var kTo = (rankFrom === RANK_1 ? SQUARE_MAP.g1 : SQUARE_MAP.g8)
+                        var rookFrom = ROOKS[us][1].square
+                        var rookTo = (rankFrom === RANK_1 ? SQUARE_MAP.f1 : SQUARE_MAP.f8)
+                        if (
+                            rookFrom != null &&
+                            path_clear_for_king(kTo, rookFrom) &&
+                            path_clear_for_rook(rookFrom, rookTo) &&
+                            king_path_safe(kTo)
+                        ) {
+                            add_move(board, moves, kFrom, kTo, BITS.KSIDE_CASTLE)
+                        }
+                    }
 
-                    if (
-                        board[castling_from - 1] == null &&
-                        board[castling_from - 2] == null &&
-                        board[castling_from - 3] == null &&
-                        !attacked(them, kings[us]) &&
-                        !attacked(them, castling_from - 1) &&
-                        !attacked(them, castling_to)
-                    ) {
-                        add_move(board, moves, kings[us], castling_to, BITS.QSIDE_CASTLE)
+                    if (qside) {
+                        var kToQ = (rankFrom === RANK_1 ? SQUARE_MAP.c1 : SQUARE_MAP.c8)
+                        var rookFromQ = ROOKS[us][0].square
+                        var rookToQ = (rankFrom === RANK_1 ? SQUARE_MAP.d1 : SQUARE_MAP.d8)
+                        if (
+                            rookFromQ != null &&
+                            path_clear_for_king(kToQ, rookFromQ) &&
+                            path_clear_for_rook(rookFromQ, rookToQ) &&
+                            king_path_safe(kToQ)
+                        ) {
+                            add_move(board, moves, kFrom, kToQ, BITS.QSIDE_CASTLE)
+                        }
+                    }
+                } else {
+                    /* king-side castling */
+                    if (castling[us] & BITS.KSIDE_CASTLE) {
+                        var castling_from = kings[us]
+                        var castling_to = castling_from + 2
+
+                        if (
+                            board[castling_from + 1] == null &&
+                            board[castling_to] == null &&
+                            !attacked(them, kings[us]) &&
+                            !attacked(them, castling_from + 1) &&
+                            !attacked(them, castling_to)
+                        ) {
+                            add_move(board, moves, kings[us], castling_to, BITS.KSIDE_CASTLE)
+                        }
+                    }
+
+                    /* queen-side castling */
+                    if (castling[us] & BITS.QSIDE_CASTLE) {
+                        var castling_from = kings[us]
+                        var castling_to = castling_from - 2
+
+                        if (
+                            board[castling_from - 1] == null &&
+                            board[castling_from - 2] == null &&
+                            board[castling_from - 3] == null &&
+                            !attacked(them, kings[us]) &&
+                            !attacked(them, castling_from - 1) &&
+                            !attacked(them, castling_to)
+                        ) {
+                            add_move(board, moves, kings[us], castling_to, BITS.QSIDE_CASTLE)
+                        }
                     }
                 }
             }
@@ -1036,8 +1143,33 @@ export const Chess = function (fen) {
         var them = swap_color(us)
         push(move)
 
-        board[move.to] = board[move.from]
-        board[move.from] = null
+        // Special handling for Chess960 castling where the king may not move (rook-move-only)
+        var is960Castle = isChess960 && (move.flags & (BITS.KSIDE_CASTLE | BITS.QSIDE_CASTLE)) && board[move.from] && board[move.from].type === KING
+        if (is960Castle) {
+            var rankSide = rank(move.from)
+            var isK = !!(move.flags & BITS.KSIDE_CASTLE)
+            var rookFromC = isK ? ROOKS[us][1].square : ROOKS[us][0].square
+            var rookToC = isK
+                ? (rankSide === RANK_1 ? SQUARE_MAP.f1 : SQUARE_MAP.f8)
+                : (rankSide === RANK_1 ? SQUARE_MAP.d1 : SQUARE_MAP.d8)
+            // If rook sits on king's destination in transposition castling, move rook first
+            if (move.to !== move.from) {
+                if (rookFromC === move.to) {
+                    board[rookToC] = board[rookFromC]
+                    board[rookFromC] = null
+                }
+                // now move king normally
+                board[move.to] = board[move.from]
+                board[move.from] = null
+            } else {
+                // rook-move-only: king stays; only move rook
+                board[rookToC] = board[rookFromC]
+                board[rookFromC] = null
+            }
+        } else {
+            board[move.to] = board[move.from]
+            board[move.from] = null
+        }
 
         /* if ep capture, remove the captured pawn */
         if (move.flags & BITS.EP_CAPTURE) {
@@ -1054,20 +1186,44 @@ export const Chess = function (fen) {
         }
 
         /* if we moved the king */
-        if (board[move.to].type === KING) {
+        if (board[move.to] && board[move.to].type === KING) {
             kings[board[move.to].color] = move.to
 
-            /* if we castled, move the rook next to the king */
+            /* if we castled, move the rook to its final square (when king actually moved) */
             if (move.flags & BITS.KSIDE_CASTLE) {
-                var castling_to = move.to - 1
-                var castling_from = move.to + 1
-                board[castling_to] = board[castling_from]
-                board[castling_from] = null
+                if (isChess960) {
+                    // If the king didn't move (rook-move-only), this was already handled above
+                    if (move.to !== move.from) {
+                        var rTo = (rank(move.to) === RANK_1 ? SQUARE_MAP.f1 : SQUARE_MAP.f8)
+                        var rFrom = ROOKS[us][1].square
+                        // If rook already moved (transposition), skip; else move it now
+                        if (board[rTo] == null || (board[rTo] && board[rTo].type !== ROOK)) {
+                            board[rTo] = board[rFrom]
+                            board[rFrom] = null
+                        }
+                    }
+                } else {
+                    var castling_to = move.to - 1
+                    var castling_from = move.to + 1
+                    board[castling_to] = board[castling_from]
+                    board[castling_from] = null
+                }
             } else if (move.flags & BITS.QSIDE_CASTLE) {
-                var castling_to = move.to + 1
-                var castling_from = move.to - 2
-                board[castling_to] = board[castling_from]
-                board[castling_from] = null
+                if (isChess960) {
+                    if (move.to !== move.from) {
+                        var rToQ = (rank(move.to) === RANK_1 ? SQUARE_MAP.d1 : SQUARE_MAP.d8)
+                        var rFromQ = ROOKS[us][0].square
+                        if (board[rToQ] == null || (board[rToQ] && board[rToQ].type !== ROOK)) {
+                            board[rToQ] = board[rFromQ]
+                            board[rFromQ] = null
+                        }
+                    }
+                } else {
+                    var castling_to = move.to + 1
+                    var castling_from = move.to - 2
+                    board[castling_to] = board[castling_from]
+                    board[castling_from] = null
+                }
             }
 
             /* turn off castling */
@@ -1143,9 +1299,13 @@ export const Chess = function (fen) {
         var us = turn
         var them = swap_color(turn)
 
-        board[move.from] = board[move.to]
-        board[move.from].type = move.piece // to undo any promotions
-        board[move.to] = null
+        // Undo primary piece movement, except in Chess960 rook-move-only castling where the king didn't move
+        var skipKingUndo = isChess960 && (move.flags & (BITS.KSIDE_CASTLE | BITS.QSIDE_CASTLE)) && move.from === move.to
+        if (!skipKingUndo) {
+            board[move.from] = board[move.to]
+            board[move.from].type = move.piece // to undo any promotions
+            board[move.to] = null
+        }
 
         if (move.flags & BITS.CAPTURE) {
             board[move.to] = { type: move.captured, color: them }
@@ -1160,17 +1320,31 @@ export const Chess = function (fen) {
         }
 
         if (move.flags & (BITS.KSIDE_CASTLE | BITS.QSIDE_CASTLE)) {
-            var castling_to, castling_from
-            if (move.flags & BITS.KSIDE_CASTLE) {
-                castling_to = move.to + 1
-                castling_from = move.to - 1
-            } else if (move.flags & BITS.QSIDE_CASTLE) {
-                castling_to = move.to - 2
-                castling_from = move.to + 1
-            }
+            if (isChess960) {
+                var rFromU, rToU
+                if (move.flags & BITS.KSIDE_CASTLE) {
+                    rFromU = ROOKS[us][1].square
+                    rToU = (rank(move.to) === RANK_1 ? SQUARE_MAP.f1 : SQUARE_MAP.f8)
+                } else if (move.flags & BITS.QSIDE_CASTLE) {
+                    rFromU = ROOKS[us][0].square
+                    rToU = (rank(move.to) === RANK_1 ? SQUARE_MAP.d1 : SQUARE_MAP.d8)
+                }
+                // If king didn't move (rook-move-only), the king is already on move.from/move.to; just move rook back
+                board[rFromU] = board[rToU]
+                board[rToU] = null
+            } else {
+                var castling_to, castling_from
+                if (move.flags & BITS.KSIDE_CASTLE) {
+                    castling_to = move.to + 1
+                    castling_from = move.to - 1
+                } else if (move.flags & BITS.QSIDE_CASTLE) {
+                    castling_to = move.to - 2
+                    castling_from = move.to + 1
+                }
 
-            board[castling_to] = board[castling_from]
-            board[castling_from] = null
+                board[castling_to] = board[castling_from]
+                board[castling_from] = null
+            }
         }
 
         return move

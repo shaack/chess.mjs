@@ -25,5 +25,8 @@
   "homepage": "https://github.com/shaack/chess.mjs#readme",
   "devDependencies": {
     "teevi": "^2.2.4"
+  },
+  "dependencies": {
+    "chess.js": "^0.13.4"
   }
 }
