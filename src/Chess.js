@@ -25,6 +25,12 @@
  *
  *----------------------------------------------------------------------------*/
 
+/**
+ * Anpassungen für Chess960 gekennzeichnet durch "Chess960"-Kommentar.
+ * Öffentliche API unverändert, nur eergänzt um Getter für isVariant960
+ * Functions für Startpositionen Chess960 exportiert (s. letzter Abschnitt).
+ */
+
 const SYMBOLS = 'pnbrqkPNBRQK'
 
 const DEFAULT_POSITION =
@@ -116,16 +122,10 @@ const SQUARE_MAP = {
     a1: 112, b1: 113, c1: 114, d1: 115, e1: 116, f1: 117, g1: 118, h1: 119
 };
 
-const ROOKS = {
-    w: [
-        { square: SQUARE_MAP.a1, flag: BITS.QSIDE_CASTLE },
-        { square: SQUARE_MAP.h1, flag: BITS.KSIDE_CASTLE },
-    ],
-    b: [
-        { square: SQUARE_MAP.a8, flag: BITS.QSIDE_CASTLE },
-        { square: SQUARE_MAP.h8, flag: BITS.KSIDE_CASTLE },
-    ],
-}
+
+// SQUARE_MAP von algebraischer Notation zu Index (0x88)
+const FILES = 'abcdefgh';
+const RANKS = '12345678';
 
 const PARSER_STRICT = 0
 const PARSER_SLOPPY = 1
@@ -245,6 +245,7 @@ function trim(str) {
     return str.replace(/^\s+|\s+$/g, '')
 }
 
+
 /***************************************************************************
  * PUBLIC CONSTANTS
  **************************************************************************/
@@ -282,16 +283,211 @@ export const SQUARES = (function () {
 export const FLAGS = {
     NORMAL: 'n',
     CAPTURE: 'c',
-    BIG_PAWN: 'b',
+    BIG_PAWN: 'b', // Doppelschritt eines Bauern
     EP_CAPTURE: 'e',
     PROMOTION: 'p',
     KSIDE_CASTLE: 'k',
     QSIDE_CASTLE: 'q',
 }
 
-export const Chess = function (fen) {
+/***************************************************************************
+ * PUBLIC Functions - siehe export am Modulende
+ **************************************************************************/
+
+/**
+ * Chess960
+ *
+ * Generiert eine FEN-Startposition für Standard-Schach oder Chess960.
+ *
+ * Parameter:
+ *   options.id (optional) - ID der Chess960-Position (0-959). Wenn nicht angegeben, zufällig generiert.
+ *   options.chess960 (optional, default=false) - true für Chess960, false für Standard-Schach.
+ *   options.includePGNTags (optional, default=false) - Wenn true, gibt die PGN-Tag-Section inklusive FEN zurück.
+ *
+ * Rückgabe:
+ *   String - FEN-String oder PGN-Tag-Section je nach includePGNTags.
+ */
+function generateStartPositionFEN({ id, chess960 = false, includePGNTags = false } = {}) {
+    const fileNames = 'abcdefgh';
+
+    // 10 mögliche KRN-Muster (König, Springer, Springer, Turm, Turm) für die 5 verbleibenden Figuren
+    const KRN = ["NNRKR", "NRNKR", "NRKNR", "NRKRN", "RNNKR", "RNKNR", "RNKRN", "RKNNR", "RKNRN", "RKRNN"];
+
+    let whiteRank = '';
+
+    if (!chess960) {
+        // Standard-Schach: klassische Ausgangsstellung
+        whiteRank = 'RNBQKBNR';
+    } else {
+        // → Chess960 aktiv: ID validieren oder zufällig generieren
+        if (id === undefined || id === null) {
+            id = Math.floor(Math.random() * 960); // zufällige ID zwischen 0 und 959
+        } else if (typeof id !== 'number' || id < 0 || id > 959) {
+            throw new Error("Invalid Chess960 ID: " + id);
+        }
+
+        const pos = Array(8).fill(null); // Array mit 8 Feldern für die erste Reihe
+
+        // -----------------------------
+        // 1. Läuferpositionen bestimmen
+        // -----------------------------
+        let q = Math.floor(id / 4); // 0–239
+        let r = id % 4;             // 0–3 → steuert hellen Läufer (auf ungeraden Feldern: 1,3,5,7)
+        pos[r * 2 + 1] = "B";
+
+        r = q % 4;                  // 0–3 → steuert dunklen Läufer (auf geraden Feldern: 0,2,4,6)
+        q = Math.floor(q / 4);
+        pos[r * 2] = "B";
+
+        // -----------------------------
+        // 2. Dame setzen
+        // -----------------------------
+        r = q % 6;                  // 0–5 → Position auf freiem Feld
+        q = Math.floor(q / 6);
+        let empty = pos.map((v, i) => v === null ? i : null).filter(i => i !== null);
+        pos[empty[r]] = "Q";
+
+        // -----------------------------
+        // 3. KRN (König, Springer, Springer, Turm, Turm)
+        // -----------------------------
+        const krn = KRN[q].split('');
+        pos.forEach((v, i) => {
+            if (v === null) {
+                pos[i] = krn.shift(); // restliche Figuren einsetzen
+            }
+        });
+
+        // Ergebnis: weiße Grundreihe
+        whiteRank = pos.join('');
+    }
+
+    // Schwarze Grundreihe ist die Kleinschreibung der weißen
+    const blackRank = whiteRank.toLowerCase();
+
+    // ------------------------------------
+    // Rochaderechte ermitteln (Chess960!)
+    // ------------------------------------
+    let castlingRights = '-';
+    if (!chess960) {
+        castlingRights = 'KQkq'; // klassische Rochaderechte
+    } else {
+        const rookIndices = [];
+        for (let i = 0; i < 8; i++) {
+            if (whiteRank[i] === 'R') rookIndices.push(i); // Positionen der weißen Türme
+        }
+        const kingIndex = whiteRank.indexOf('K'); // Position des Königs
+
+        // Weiße Rochaderechte → Großbuchstaben der Turm-Files (A–H)
+        const whiteRights = rookIndices.map(i => fileNames[i].toUpperCase()).join('');
+        // Schwarze Rochaderechte spiegeln → Kleinbuchstaben
+        const blackRights = rookIndices.map(i => fileNames[i]).join('');
+        castlingRights = whiteRights + blackRights;
+    }
+
+    // --------------------------------------
+    // FEN-Zeile zusammenbauen
+    // --------------------------------------
+    const fen = `${blackRank}/pppppppp/8/8/8/8/PPPPPPPP/${whiteRank} w ${castlingRights} - 0 1`;
+
+    // Optional: PGN-Tags erzeugen
+    if (includePGNTags) {
+        const tags = [
+            `[Event "Chess960 Game"]`,
+            `[Site "?"]`,
+            `[Date "${new Date().toISOString().slice(0, 10)}"]`,
+            `[Round "-"]`,
+            `[White "?"]`,
+            `[Black "?"]`,
+            `[Result "*"]`,
+            `[Variant "${chess960 ? 'Chess960' : 'Standard'}"]`,
+            `[FEN "${fen}"]`,
+            ``,
+            `*`
+        ];
+        return tags.join('\n');
+    }
+    return fen;
+}
+
+/**
+ * Ermittelt die Chess960-ID (0–959) aus einer gültigen FEN-Zeile.
+ *  https://www.mark-weeks.com/cfaa/chess960/c960strt.htm
+ *
+ * Führt dabei eine vollständige Validierung der Startstellung durch:
+ * - Genau 1 König
+ * - Genau 2 Türme
+ * - Genau 2 Läufer (auf ungleichen Farben)
+ * - König steht zwischen den Türmen
+ *
+ * @param {string} fen - FEN-Zeile der Startstellung (nur erste Rank wird verwendet)
+ * @returns {number|null} - Chess960-ID (0–959), oder null bei ungültiger Stellung
+ */
+function decodeChess960IdFromFEN(fen) {
+    const KRN = ["NNRKR", "NRNKR", "NRKNR", "NRKRN", "RNNKR", "RNKNR", "RNKRN", "RKNNR", "RKNRN", "RKRNN"];
+
+    const fields = fen.trim().split(/\s+/);
+    if (fields.length < 1) return null;
+
+    const ranks = fields[0].split('/');
+    if (ranks.length !== 8) return null;
+
+    const backRank = ranks[7];
+    if (backRank.length !== 8) return null;
+
+    const pos = backRank.split('');
+
+    // Figuren zählen und prüfen
+    const counts = { K: 0, Q: 0, R: 0, B: 0, N: 0 };
+    for (const p of pos) {
+        if (!counts.hasOwnProperty(p)) return null;
+        counts[p]++;
+    }
+    if (counts.K !== 1 || counts.Q !== 1 || counts.R !== 2 || counts.B !== 2 || counts.N !== 2) return null;
+
+    // Läuferpositionen
+    const bishops = pos.map((p, i) => p === 'B' ? i : -1).filter(i => i !== -1);
+    if (bishops.length !== 2 || bishops[0] % 2 === bishops[1] % 2) return null;
+
+    const darkBishop = bishops.find(i => i % 2 === 0);
+    const lightBishop = bishops.find(i => i % 2 === 1);
+
+    const darkIdx = darkBishop / 2;
+    const lightIdx = (lightBishop - 1) / 2;
+
+    if (!Number.isInteger(darkIdx) || !Number.isInteger(lightIdx)) return null;
+
+    const bishopPart = lightIdx + 4 * darkIdx;
+
+    // Dame position in freien Feldern
+    const fixedIndices = [darkBishop, lightBishop];
+    const queenIndex = pos.indexOf('Q');
+    const freeForQueen = [];
+    for (let i = 0; i < 8; i++) {
+        if (!fixedIndices.includes(i)) freeForQueen.push(i);
+    }
+    const queenPart = freeForQueen.indexOf(queenIndex);
+    if (queenPart === -1) return null;
+
+    // KRN-Code
+    const krnStr = pos.filter(p => ['K', 'R', 'N'].includes(p)).join('');
+    const krnCode = KRN.indexOf(krnStr);
+    if (krnCode === -1) return null;
+
+    // ID zusammensetzen
+    const id = bishopPart + 16 * (queenPart + 6 * krnCode);
+    return id;
+}
+
+/* Definition von Chess - "Constructor" */
+const Chess = function (fen, options = {}) {
+    let isChess960 = !!options.chess960; // ← Instanzspezifisch
     var board = new Array(128)
     var kings = { w: EMPTY, b: EMPTY }
+    var rooks = { w: [], b: [] }; // rooks dynamisch machen für Chess960
+    var castling_moves = {
+        w: { kingside: null, queenside: null },
+        b: { kingside: null, queenside: null },
+    }; // Speichern der in load() ermittelten Rochadezüge
     var turn = WHITE
     var castling = { w: 0, b: 0 }
     var ep_square = EMPTY
@@ -310,6 +506,67 @@ export const Chess = function (fen) {
         load(fen)
     }
 
+    // Hilfsfunktion, um Türme dynamisch zu ermitteln (Chess960-kompatibel)
+    function update_rooks() {
+        const files = 'abcdefgh';
+        const ranks = { w: '1', b: '8' };
+        ['w', 'b'].forEach(color => {
+            rooks[color] = [];
+            for (let i = 0; i < 8; i++) {
+                const square = files[i] + ranks[color];
+                const sqIdx = SQUARE_MAP[square];
+                const piece = board[sqIdx];
+                if (piece && piece.type === ROOK && piece.color === color) {
+                    const flag = (sqIdx < kings[color])
+                        ? BITS.QSIDE_CASTLE
+                        : BITS.KSIDE_CASTLE;
+                    rooks[color].push({ square: sqIdx, flag });
+                }
+            }
+        });
+    }
+
+    // Speichert die Position der Rochade-Figuren aus der Start-FEN
+    function prepare_castling_moves() {
+        castling_moves = {
+            w: { kingside: null, queenside: null },
+            b: { kingside: null, queenside: null },
+        };
+
+        ['w', 'b'].forEach(color => {
+            const ksq = kings[color];
+            if (ksq === EMPTY) return;
+
+            const rank = color === 'w' ? '1' : '8';
+
+            for (const { square: rsq, flag } of rooks[color]) {
+                // Hat diese Seite überhaupt noch das Rochaderecht?
+                if (!(castling[color] & flag)) continue;
+
+                // Bestimme Rochade-Ziel-Felder
+                const kFile = FILES[ksq & 0x0F];
+                const rFile = FILES[rsq & 0x0F];
+
+                // Ziel-Felder nach Chess960-Regel:
+                const king_to = SQUARE_MAP[(flag === BITS.KSIDE_CASTLE ? 'g' : 'c') + rank];
+                const rook_to = SQUARE_MAP[(flag === BITS.KSIDE_CASTLE ? 'f' : 'd') + rank];
+
+                const move = {
+                    king_from: ksq,
+                    king_to,
+                    rook_from: rsq,
+                    rook_to,
+                };
+
+                if (flag === BITS.KSIDE_CASTLE) {
+                    castling_moves[color].kingside = move;
+                } else if (flag === BITS.QSIDE_CASTLE) {
+                    castling_moves[color].queenside = move;
+                }
+            }
+        });
+    }
+
     function clear(keep_headers) {
         if (typeof keep_headers === 'undefined') {
             keep_headers = false
@@ -317,6 +574,11 @@ export const Chess = function (fen) {
 
         board = new Array(128)
         kings = { w: EMPTY, b: EMPTY }
+        rooks = { w: [], b: [] }; // rooks dynamisch machen für Chess960
+        castling_moves = {
+            w: { kingside: null, queenside: null },
+            b: { kingside: null, queenside: null },
+        }; // Speichern der in  load() ermittelten Rochadezüge
         turn = WHITE
         castling = { w: 0, b: 0 }
         ep_square = EMPTY
@@ -325,7 +587,7 @@ export const Chess = function (fen) {
         history = []
         if (!keep_headers) header = {}
         comments = {}
-        update_setup(generate_fen())
+        update_setup(generate_fen()) // PGN-Header anpassen
     }
 
     function prune_comments() {
@@ -351,205 +613,298 @@ export const Chess = function (fen) {
         load(DEFAULT_POSITION)
     }
 
-    function load(fen, keep_headers) {
+    /**
+     * Lädt eine Stellung aus einer FEN-Zeichenkette.
+     * Unterstützt Standard- und Chess960-FEN (X-FEN) und setzt interne Variablen.
+     *
+     * @param {string} fen - FEN-Zeichenkette der Stellung.
+     * @param {boolean} [keep_headers=false] - Ob vorhandene Header beim Laden behalten werden.
+     * @param {Object} [options={}] - Optionale Parameter.
+     * @param {boolean} [options.chess960] - Erzwingt Chess960-Modus (überschreibt automatische Erkennung).
+     * @returns {boolean} true bei erfolgreichem Laden, sonst false.
+     */
+    function load(fen, keep_headers, options = {}) {
         if (typeof keep_headers === 'undefined') {
-            keep_headers = false
+            keep_headers = false;
         }
 
-        var tokens = fen.split(/\s+/)
-        var position = tokens[0]
-        var square = 0
+        // Optionaler Chess960-Flag aus options oder FEN-Castling-Erkennung
+        if (options.hasOwnProperty('chess960')) {
+            isChess960 = !!options.chess960;
+        } else {
+            isChess960 = false; // fallback
+        }
 
+        const tokens = fen.trim().split(/\s+/);
         if (!validate_fen(fen).valid) {
-            return false
+            return false;
         }
 
-        clear(keep_headers)
+        // Wenn nicht explizit Chess960, aber Rochaderechte im X-FEN Format (Buchstaben statt KQkq), dann aktivieren
+        if (!isChess960 && /^[A-Ha-h]{1,4}$/.test(tokens[2])) {
+            isChess960 = true;
+        }
 
-        for (var i = 0; i < position.length; i++) {
-            var piece = position.charAt(i)
+        const position = tokens[0];
+        let square = 0;
 
+        clear(keep_headers);
+
+        // Startaufstellung entsprechend FEN setzen
+        for (let i = 0; i < position.length; i++) {
+            const piece = position.charAt(i);
             if (piece === '/') {
-                square += 8
+                square += 8;
             } else if (is_digit(piece)) {
-                square += parseInt(piece, 10)
+                square += parseInt(piece, 10);
             } else {
-                var color = piece < 'a' ? WHITE : BLACK
-                put({ type: piece.toLowerCase(), color: color }, algebraic(square))
-                square++
+                const color = piece < 'a' ? WHITE : BLACK;
+                put({ type: piece.toLowerCase(), color }, algebraic(square));
+                square++;
             }
         }
 
-        turn = tokens[1]
+        turn = tokens[1];
+        castling = { w: 0, b: 0 }; // reset
 
-        if (tokens[2].indexOf('K') > -1) {
-            castling.w |= BITS.KSIDE_CASTLE
-        }
-        if (tokens[2].indexOf('Q') > -1) {
-            castling.w |= BITS.QSIDE_CASTLE
-        }
-        if (tokens[2].indexOf('k') > -1) {
-            castling.b |= BITS.KSIDE_CASTLE
-        }
-        if (tokens[2].indexOf('q') > -1) {
-            castling.b |= BITS.QSIDE_CASTLE
+        // Felder der Türme feststellen - muss vor dem Setzen der Rochade-Rechte passieren
+        update_rooks();
+
+        const cr = tokens[2];
+        // Castling-Rechte setzen entsprechend der Position der Türme zum König
+        if (isChess960 && /^[A-Ha-h]{1,4}$/.test(cr)) {
+            ['w', 'b'].forEach(color => {
+                for (let i = 0; i < cr.length; i++) {
+                    const c = cr.charAt(i);
+                    const isUpper = c === c.toUpperCase();
+                    const isWhite = color === 'w';
+
+                    // Skip if Farbe nicht passend
+                    if ((isWhite && !isUpper) || (!isWhite && isUpper)) continue;
+
+                    // Stelle sicher, dass es überhaupt rooks gibt
+                    for (const rook of rooks[color]) {
+                        const file = rook.square % 16; // 0-7 für a–h
+                        const fileChar = 'abcdefgh'.charAt(file);
+                        if (fileChar === c.toLowerCase()) {
+                            castling[color] |= rook.flag; // BITS.KSIDE_CASTLE oder BITS.QSIDE_CASTLE
+                        }
+                    }
+                }
+            });
+        } else {
+            // Klassische KQkq
+            if (cr.indexOf('K') > -1) castling.w |= BITS.KSIDE_CASTLE;
+            if (cr.indexOf('Q') > -1) castling.w |= BITS.QSIDE_CASTLE;
+            if (cr.indexOf('k') > -1) castling.b |= BITS.KSIDE_CASTLE;
+            if (cr.indexOf('q') > -1) castling.b |= BITS.QSIDE_CASTLE;
         }
 
-        ep_square = tokens[3] === '-' ? EMPTY : SQUARE_MAP[tokens[3]]
-        half_moves = parseInt(tokens[4], 10)
-        move_number = parseInt(tokens[5], 10)
+        ep_square = tokens[3] === '-' ? EMPTY : SQUARE_MAP[tokens[3]];
+        half_moves = parseInt(tokens[4], 10);
+        move_number = parseInt(tokens[5], 10);
 
-        update_setup(generate_fen())
+        // Rochade-Züge ermitteln und speichern
+        prepare_castling_moves();
+        // PGN-Header-Tags an Aufstellung anpassen (SetUp, FEN, Variant)
+        update_setup(generate_fen());
 
-        return true
+        return true;
     }
 
-    /* TODO: this function is pretty much crap - it validates structure but
-     * completely ignores content (e.g. doesn't verify that each side has a king)
-     * ... we should rewrite this, and ditch the silly error_number field while
-     * we're at it
+    /**
+     * Validiert einen FEN-String inklusive Chess960-spezifischer Aspekte.
+     * Prüft Struktur, korrekte Anzahl und Position der Figuren, Rochaderechte, Zugrecht und En-Passant-Feld.
+     *
+     * @param {string} fen - Der zu validierende FEN-String.
+     * @returns {object} Objekt mit { valid: boolean, error_number: number, error: string }.
      */
     function validate_fen(fen) {
-        var errors = {
+        const errors = {
             0: 'No errors.',
-            1: 'FEN string must contain six space-delimited fields.',
-            2: '6th field (move number) must be a positive integer.',
-            3: '5th field (half move counter) must be a non-negative integer.',
-            4: '4th field (en-passant square) is invalid.',
-            5: '3rd field (castling availability) is invalid.',
-            6: '2nd field (side to move) is invalid.',
-            7: "1st field (piece positions) does not contain 8 '/'-delimited rows.",
-            8: '1st field (piece positions) is invalid [consecutive numbers].',
-            9: '1st field (piece positions) is invalid [invalid piece].',
-            10: '1st field (piece positions) is invalid [row too large].',
-            11: 'Illegal en-passant square',
-        }
+            1: 'FEN must contain six space-delimited fields.',
+            2: 'Move number must be a positive integer.',
+            3: 'Half move clock must be a non-negative integer.',
+            4: 'En-passant square is invalid.',
+            5: 'Castling availability is invalid.',
+            6: 'Side to move must be "w" or "b".',
+            7: 'Piece placement must contain 8 rows.',
+            8: 'Invalid consecutive numbers in piece placement.',
+            9: 'Invalid piece symbol in piece placement.',
+            10: 'Row does not sum to 8 squares.',
+            11: 'Illegal en-passant square for current side.',
+            12: 'King missing or multiple kings found for a side.',
+            13: 'Invalid castling rights for the position.'
+        };
 
-        /* 1st criterion: 6 space-seperated fields? */
-        var tokens = fen.split(/\s+/)
+        const tokens = fen.trim().split(/\s+/);
         if (tokens.length !== 6) {
-            return { valid: false, error_number: 1, error: errors[1] }
+            return { valid: false, error_number: 1, error: errors[1] };
         }
 
-        /* 2nd criterion: move number field is a integer value > 0? */
-        if (isNaN(parseInt(tokens[5])) || parseInt(tokens[5], 10) <= 0) {
-            return { valid: false, error_number: 2, error: errors[2] }
+        const [piecePlacement, activeColor, castlingRights, epSquare, halfMoveClock, moveNumber] = tokens;
+
+        // Validate move number
+        const moveNumInt = parseInt(moveNumber, 10);
+        if (isNaN(moveNumInt) || moveNumInt <= 0) {
+            return { valid: false, error_number: 2, error: errors[2] };
         }
 
-        /* 3rd criterion: half move counter is an integer >= 0? */
-        if (isNaN(parseInt(tokens[4])) || parseInt(tokens[4], 10) < 0) {
-            return { valid: false, error_number: 3, error: errors[3] }
+        // Validate half-move clock
+        const halfMoveInt = parseInt(halfMoveClock, 10);
+        if (isNaN(halfMoveInt) || halfMoveInt < 0) {
+            return { valid: false, error_number: 3, error: errors[3] };
         }
 
-        /* 4th criterion: 4th field is a valid e.p.-string? */
-        if (!/^(-|[abcdefgh][36])$/.test(tokens[3])) {
-            return { valid: false, error_number: 4, error: errors[4] }
+        // Validate en passant
+        if (!/^(-|[abcdefgh][36])$/.test(epSquare)) {
+            return { valid: false, error_number: 4, error: errors[4] };
         }
 
-        /* 5th criterion: 3th field is a valid castle-string? */
-        if (!/^(KQ?k?q?|Qk?q?|kq?|q|-)$/.test(tokens[2])) {
-            return { valid: false, error_number: 5, error: errors[5] }
+        // Validate side to move
+        if (!/^[wb]$/.test(activeColor)) {
+            return { valid: false, error_number: 6, error: errors[6] };
         }
 
-        /* 6th criterion: 2nd field is "w" (white) or "b" (black)? */
-        if (!/^(w|b)$/.test(tokens[1])) {
-            return { valid: false, error_number: 6, error: errors[6] }
-        }
-
-        /* 7th criterion: 1st field contains 8 rows? */
-        var rows = tokens[0].split('/')
+        // Validate piece placement rows
+        const rows = piecePlacement.split('/');
         if (rows.length !== 8) {
-            return { valid: false, error_number: 7, error: errors[7] }
+            return { valid: false, error_number: 7, error: errors[7] };
         }
 
-        /* 8th criterion: every row is valid? */
-        for (var i = 0; i < rows.length; i++) {
-            /* check for right sum of fields AND not two numbers in succession */
-            var sum_fields = 0
-            var previous_was_number = false
+        const validPieces = /^[prnbqkPRNBQK0-8]+$/;
+        let whiteKingCount = 0, blackKingCount = 0;
 
-            for (var k = 0; k < rows[i].length; k++) {
-                if (!isNaN(rows[i][k])) {
-                    if (previous_was_number) {
-                        return { valid: false, error_number: 8, error: errors[8] }
+        for (let i = 0; i < 8; i++) {
+            const row = rows[i];
+            if (!validPieces.test(row)) {
+                return { valid: false, error_number: 9, error: errors[9] };
+            }
+
+            let sumSquares = 0;
+            let previousWasNumber = false;
+            for (const ch of row) {
+                if (/\d/.test(ch)) {
+                    if (previousWasNumber) {
+                        return { valid: false, error_number: 8, error: errors[8] };
                     }
-                    sum_fields += parseInt(rows[i][k], 10)
-                    previous_was_number = true
+                    sumSquares += parseInt(ch, 10);
+                    previousWasNumber = true;
                 } else {
-                    if (!/^[prnbqkPRNBQK]$/.test(rows[i][k])) {
-                        return { valid: false, error_number: 9, error: errors[9] }
-                    }
-                    sum_fields += 1
-                    previous_was_number = false
+                    sumSquares += 1;
+                    previousWasNumber = false;
+                    if (ch === 'K') whiteKingCount++;
+                    if (ch === 'k') blackKingCount++;
                 }
             }
-            if (sum_fields !== 8) {
-                return { valid: false, error_number: 10, error: errors[10] }
+            if (sumSquares !== 8) {
+                return { valid: false, error_number: 10, error: errors[10] };
             }
         }
 
-        if (
-            (tokens[3][1] == '3' && tokens[1] == 'w') ||
-            (tokens[3][1] == '6' && tokens[1] == 'b')
-        ) {
-            return { valid: false, error_number: 11, error: errors[11] }
+        // Validate kings presence
+        if (whiteKingCount !== 1 || blackKingCount !== 1) {
+            return { valid: false, error_number: 12, error: errors[12] };
         }
 
-        /* everything's okay! */
-        return { valid: true, error_number: 0, error: errors[0] }
+        // Validate castling rights format (Chess960 allows A-H, a-h)
+        if (!/^(-|[KQkqA-Ha-h]{1,8})$/.test(castlingRights)) {
+            return { valid: false, error_number: 5, error: errors[5] };
+        }
+
+        // Validate legality of en passant square wrt active color
+        if (
+            (epSquare !== '-') &&
+            (
+                (epSquare[1] === '3' && activeColor === 'w') ||
+                (epSquare[1] === '6' && activeColor === 'b')
+            )
+        ) {
+            return { valid: false, error_number: 11, error: errors[11] };
+        }
+
+        return { valid: true, error_number: 0, error: errors[0] };
     }
 
+    /**
+     * Erzeugt die FEN-Zeichenkette für die aktuelle Brettstellung.
+     * Berücksichtigt Chess960 und klassische Rochaderechte.
+     * @returns {string} FEN-Zeichenkette der aktuellen Position inklusive Zugrecht,
+     * Rochaderechte, en passant, Halbzähler und Zugnummer.
+     */
     function generate_fen() {
-        var empty = 0
-        var fen = ''
+        let empty = 0;
+        let fen = '';
 
-        for (var i = SQUARE_MAP.a8; i <= SQUARE_MAP.h1; i++) {
+        // Durch alle Felder von a8 bis h1 iterieren (0x88 Board)
+        for (let i = SQUARE_MAP.a8; i <= SQUARE_MAP.h1; i++) {
             if (board[i] == null) {
-                empty++
+                empty++;
             } else {
                 if (empty > 0) {
-                    fen += empty
-                    empty = 0
+                    fen += empty;
+                    empty = 0;
                 }
-                var color = board[i].color
-                var piece = board[i].type
+                const color = board[i].color;
+                const piece = board[i].type;
 
-                fen += color === WHITE ? piece.toUpperCase() : piece.toLowerCase()
+                fen += color === WHITE ? piece.toUpperCase() : piece.toLowerCase();
             }
 
+            // Zeilenwechsel bei jedem 8. Feld
             if ((i + 1) & 0x88) {
                 if (empty > 0) {
-                    fen += empty
+                    fen += empty;
                 }
-
                 if (i !== SQUARE_MAP.h1) {
-                    fen += '/'
+                    fen += '/';
                 }
-
-                empty = 0
-                i += 8
+                empty = 0;
+                i += 8;
             }
         }
 
-        var cflags = ''
-        if (castling[WHITE] & BITS.KSIDE_CASTLE) {
-            cflags += 'K'
-        }
-        if (castling[WHITE] & BITS.QSIDE_CASTLE) {
-            cflags += 'Q'
-        }
-        if (castling[BLACK] & BITS.KSIDE_CASTLE) {
-            cflags += 'k'
-        }
-        if (castling[BLACK] & BITS.QSIDE_CASTLE) {
-            cflags += 'q'
+        let cflags = '';
+
+        if (!isChess960) {
+            // Klassisches FEN
+            if (castling[WHITE] & BITS.KSIDE_CASTLE) cflags += 'K';
+            if (castling[WHITE] & BITS.QSIDE_CASTLE) cflags += 'Q';
+            if (castling[BLACK] & BITS.KSIDE_CASTLE) cflags += 'k';
+            if (castling[BLACK] & BITS.QSIDE_CASTLE) cflags += 'q';
+        } else {
+            // X-FEN auf Basis von rooks[]
+            ['w', 'b'].forEach(color => {
+                const isUpper = color === 'w';
+
+                if (castling[color] & BITS.QSIDE_CASTLE) {
+                    const rook = rooks[color].find(r => r.flag === BITS.QSIDE_CASTLE);
+                    if (rook) {
+                        const file = rook.square % 16;
+                        const letter = FILES[file];
+                        cflags += isUpper ? letter.toUpperCase() : letter;
+                    }
+                }
+
+                if (castling[color] & BITS.KSIDE_CASTLE) {
+                    const rook = rooks[color].find(r => r.flag === BITS.KSIDE_CASTLE);
+                    if (rook) {
+                        const file = rook.square % 16;
+                        const letter = FILES[file];
+                        cflags += isUpper ? letter.toUpperCase() : letter;
+                    }
+                }
+
+            });
         }
 
-        /* do we have an empty castling flag? */
-        cflags = cflags || '-'
-        var epflags = ep_square === EMPTY ? '-' : algebraic(ep_square)
+        if (cflags === '') {
+            cflags = '-';
+        }
 
-        return [fen, turn, cflags, epflags, half_moves, move_number].join(' ')
+        const epflags = ep_square === EMPTY ? '-' : algebraic(ep_square);
+
+        return [fen, turn, cflags, epflags, half_moves, move_number].join(' ');
     }
 
     function set_header(args) {
@@ -568,58 +923,87 @@ export const Chess = function (fen) {
      * made.
      */
     function update_setup(fen) {
-        if (history.length > 0) return
+        if (history.length > 0) return;
 
         if (fen !== DEFAULT_POSITION) {
-            header['SetUp'] = '1'
-            header['FEN'] = fen
+            header['SetUp'] = '1';
+            header['FEN'] = fen;
+
+            // Chess960 Variant setzen, wenn Flag aktiv
+            if (isChess960) {
+                header['Variant'] = 'Chess960';
+            } else {
+                delete header['Variant'];
+            }
         } else {
-            delete header['SetUp']
-            delete header['FEN']
+            delete header['SetUp'];
+            delete header['FEN'];
+            delete header['Variant'];
         }
     }
 
+    // ermittelt, welche Figur auf einem angegebenen Feld steht (leeres Feld = null)
     function get(square) {
         var piece = board[SQUARE_MAP[square]]
         return piece ? { type: piece.type, color: piece.color } : null
     }
 
+    /* Setzt ein Piece-Objekt auf ein angegebenes Feld. Validiert Gültigkeit.
+    * return bei Erfolg = true, Fehlschlag = false
+    * Weder put() noch remove() aktualisieren die Turm-Positionen oder die Rochade-Züge!
+    * Das findet momentan ausschließlich in der Initialisierung über die FEN statt.
+    */
     function put(piece, square) {
-        /* check for valid piece object */
-        if (!('type' in piece && 'color' in piece)) {
-            return false
-        }
-
-        /* check for piece */
-        if (SYMBOLS.indexOf(piece.type.toLowerCase()) === -1) {
-            return false
-        }
-
-        /* check for valid square */
-        if (!(square in SQUARE_MAP)) {
-            return false
-        }
-
-        var sq = SQUARE_MAP[square]
-
-        /* don't let the user place more than one king */
+        // 1. Validierung: Ist piece ein gültiges Objekt mit den Eigenschaften 'type' und 'color'?
         if (
-            piece.type == KING &&
+            !piece ||                                 // null oder undefined?
+            typeof piece !== 'object' ||              // kein Objekt?
+            !('type' in piece) ||                     // fehlt 'type'?
+            !('color' in piece)                       // fehlt 'color'?
+        ) {
+            console.warn("⚠️ put(): Ungültiges Piece übergeben:", piece, "auf Feld", square);
+            return false;
+        }
+
+        // 2. Validierung: Ist der Piece-Typ ein erlaubtes Symbol (z. B. 'p', 'n', 'k')?
+        if (SYMBOLS.indexOf(piece.type.toLowerCase()) === -1) {
+            console.warn("⚠️ put(): Ungültiger Piece-Typ:", piece.type);
+            return false;
+        }
+
+        // 3. Validierung: Ist das Feld ein gültiger Eintrag im SQUARE_MAP (also z. B. 'e4')?
+        if (!(square in SQUARE_MAP)) {
+            console.warn("⚠️ put(): Ungültiges Feld:", square);
+            return false;
+        }
+
+        // 4. Umwandlung: algebraisches Feld wie 'e4' → internes 0x88-Feldindex
+        const sq = SQUARE_MAP[square];
+
+        // 5. Spezialfall: Verhindere, dass mehr als ein König pro Farbe existiert
+        if (
+            piece.type === KING &&
             !(kings[piece.color] == EMPTY || kings[piece.color] == sq)
         ) {
-            return false
+            console.warn("⚠️ put(): Zweiter König entdeckt für Farbe", piece.color);
+            return false;
         }
 
-        board[sq] = { type: piece.type, color: piece.color }
+        // 6. Piece auf das Brett setzen
+        board[sq] = { type: piece.type, color: piece.color };
+
+        // 7. Falls König: Position in kings[] aktualisieren
         if (piece.type === KING) {
-            kings[piece.color] = sq
+            kings[piece.color] = sq;
         }
 
-        update_setup(generate_fen())
+        // 8. Setup aktualisieren (wird z. B. für FEN-Erzeugung gebraucht)
+        update_setup(generate_fen()); // PGN-Header anpassen
 
-        return true
+        return true;
     }
 
+    /* Entfernt eine Figur von einem Feld. */
     function remove(square) {
         var piece = get(square)
         board[SQUARE_MAP[square]] = null
@@ -627,46 +1011,202 @@ export const Chess = function (fen) {
             kings[piece.color] = EMPTY
         }
 
-        update_setup(generate_fen())
+        update_setup(generate_fen()) // PGN-Header anpassen
 
         return piece
     }
 
-    function build_move(board, from, to, flags, promotion) {
-        var move = {
+    /**
+     * Erzeugt ein Zugobjekt mit allen relevanten Metadaten für spätere Verarbeitung.
+     * Beinhaltet Standardzüge sowie Spezialfälle wie Umwandlung und en-passant.
+     *
+     * @param {Array} board - Das aktuelle Spielfeld (Array mit Figurenobjekten oder null).
+     * @param {number} from - Ursprungsfeld im 0x88-Indexformat.
+     * @param {number} to - Zielfeld im 0x88-Indexformat.
+     * @param {number} flags - Bitfeld mit Zugtyp-Informationen (z. B. normal, Capture, Promotion, Castling).
+     * @param {string} [promotion] - Optionaler Umwandlungsfigurtyp ('q', 'r', 'b', 'n').
+     *
+     * @returns {Object} Das generierte Zugobjekt:
+     *   {
+     *     color: 'w' | 'b',
+     *     from: number,
+     *     to: number,
+     *     flags: number,
+     *     piece: string,
+     *     promotion?: string,
+     *     captured?: string
+     *   }
+     */
+    function build_move(board, from, to, flags, promotion, meta = {}) {
+        const move = {
             color: turn,
             from: from,
             to: to,
             flags: flags,
-            piece: board[from].type,
-        }
+            piece: board[from].type,  // optional absichern
+        };
 
         if (promotion) {
             move.flags |= BITS.PROMOTION
-            move.promotion = promotion
+            move.promotion = promotion;
         }
 
-        if (board[to]) {
-            move.captured = board[to].type
-        } else if (flags & BITS.EP_CAPTURE) {
-            move.captured = PAWN
+        // Ergänze Rochade-Metadaten (Chess960 und Standard)
+        if (meta && typeof meta === 'object') {
+            if ('rook_from' in meta) move.rook_from = meta.rook_from;
+            if ('rook_to' in meta) move.rook_to = meta.rook_to;
         }
-        return move
+
+        // Ergänzen, falls nicht übergeben
+        if ((flags & (BITS.KSIDE_CASTLE | BITS.QSIDE_CASTLE)) &&
+            (move.rook_from === undefined || move.rook_to === undefined)) {
+
+            const side = (flags & BITS.KSIDE_CASTLE) !== 0 ? 'kingside' : 'queenside';
+            const cmove = castling_moves[turn][side];
+
+            if (cmove && cmove.rook_from !== undefined && cmove.rook_to !== undefined) {
+                move.rook_from = cmove.rook_from;
+                move.rook_to = cmove.rook_to;
+            } else {
+                // optional: Schutz vor inkonsistenten Daten
+                console.warn("⚠️ castling_moves unvollständig oder fehlerhaft für Seite", side, castling_moves[turn]);
+            }
+        }
+
+        if (flags & (BITS.KSIDE_CASTLE | BITS.QSIDE_CASTLE)) {
+            if (typeof move.rook_from !== 'number' || typeof move.rook_to !== 'number') {
+                console.warn("⚠️ Warnung: Rochade-Zug ohne rook_from/rook_to", move);
+            }
+        }
+
+        // 🔐 Sicherstellen, dass captured IMMER korrekt gesetzt wird
+        if (board[to]) {
+            move.captured = board[to].type;
+        } else if (flags & BITS.EP_CAPTURE) {
+            move.captured = PAWN;
+        }
+
+        return move;
     }
 
+    /**
+     * Ermittelt die Felder zwischen angegebenen Feldern, z. B. für den Rochadeweg des Königs.
+     * Chess960: Falls König und Turm nebeneinander stehen, wird [] zurückgegeben.
+     * @param {*} from
+     * @param {*} to
+     * @returns
+     */
+    function squaresBetween(from, to) {
+        const fileFrom = from.charCodeAt(0);
+        const fileTo = to.charCodeAt(0);
+        const rank = from.charAt(1);
+
+        const min = Math.min(fileFrom, fileTo);
+        const max = Math.max(fileFrom, fileTo);
+
+        const squares = [];
+        for (let f = min + 1; f < max; f++) {
+            squares.push(String.fromCharCode(f) + rank);
+        }
+        return squares;
+    }
+
+    /* Felder zwischen König und Turm leer?
+    * True, auch wenn in Chess960 benachbart!
+    */
+    function isEmptyBetween(king_from, king_to, rook_from) {
+        const squares = squaresBetween(king_from, king_to);
+
+        // Das Ziel-Feld des Königs
+        const kingToPiece = get(king_to);
+
+        const to_is_clear = (
+            kingToPiece === null ||
+            (rook_from === king_to && kingToPiece?.type === ROOK)
+        );
+
+        return squares.every(sq => get(sq) === null) && to_is_clear;
+    }
+
+    // Schachgebot auf dem Rochadeweg des Königs einschließlich Start- und Zielfeld?
+    function isCheckOnPath(king_from, king_to, color) {
+        const squares = [king_from, ...squaresBetween(king_from, king_to), king_to];
+        return squares.some(sq => attacked(swap_color(color), sq));
+    }
+
+    /**
+     * Legalität der Rochade prüfen
+     * Chess960: Besonderheit - tauschen König und Turm die Felder?
+     * @param {*} king_from
+     * @param {*} king_to
+     * @param {*} rook_from
+     * @param {*} rook_to
+     * @param {*} color
+     * @returns
+     */
+    function iscastlinglegal(king_from, king_to, rook_from, rook_to, color) {
+        const is_clear = isEmptyBetween(algebraic(king_from), algebraic(king_to), algebraic(rook_from));
+        const is_safe = !isCheckOnPath(algebraic(king_from), algebraic(king_to), color);
+
+        // Wenn der Weg inkl. Start und Ziel nicht frei ist -> false
+        if (!is_clear || !is_safe) {
+            return false;
+        }
+
+        // Turm und König tauschen die Felder? - Nur bei Chess960 erlaubt.
+        if (king_from === rook_to && king_to === rook_from && !isChess960 ) {
+            return false;
+        }
+
+        // wenn alles passt, ist die Rochade legal
+        return true;
+    }
+
+    // Prüfung zugunsten der Lesbarkeit als function ausgegliedert.
+    function is_castling(move) {
+        return !!(move.flags & (BITS.KSIDE_CASTLE | BITS.QSIDE_CASTLE));
+    }
+
+    /**
+     * Generiert alle (pseudo-)legalen Züge für die aktuelle Brettstellung.
+     *
+     * Diese Funktion berücksichtigt Standard-Schach und Chess960 (Rochade gemäß FIDE-Regeln),
+     * inklusive Spezialregeln wie Bauernumwandlung, en-passant und Rochade.
+     * Sie kann optional auf legale Züge oder ein einzelnes Feld/Zugtyp eingeschränkt werden.
+     *
+     * @param {Object} [options] - Optionales Filter-Objekt zur Eingrenzung der Zugerzeugung.
+     * @param {boolean} [options.legal=true] - Ob nur legale Züge zurückgegeben werden sollen
+     *     (d. h. solche, die den eigenen König nicht im Schach lassen).
+     * @param {string} [options.square] - Optionales Feld (z. B. 'e2'), um Züge nur von diesem Feld zu generieren.
+     * @param {string} [options.piece] - Optionaler Filter für Figurtypen (z. B. 'n', 'p', 'k'), nur diese Figuren erzeugen Züge.
+     *
+     * @returns {Array<Object>} Eine Liste von Zugobjekten mit Eigenschaften wie:
+     *   - `from`: Startfeld (z. B. 'e2')
+     *   - `to`: Zielfeld (z. B. 'e4')
+     *   - `flags`: Bitmaske mit Zugtyp (normal, Rochade, Schlagfall, Promotion etc.)
+     *   - `piece`: Der ziehende Figurtyp (z. B. 'p' für Bauer)
+     *   - `color`: 'w' oder 'b'
+     *   - `captured` (optional): Falls es ein Schlagzug ist
+     *   - `promotion` (optional): Falls es eine Umwandlung ist
+     *
+     * Besondere Hinweise:
+     * - Rochade funktioniert korrekt auch bei Chess960, sofern `get_castling_move()` korrekt konfiguriert ist.
+     * - Bei `options.legal = false` sind auch Züge enthalten, bei denen der König im Schach stünde.
+     * - Die Funktion verwendet das interne 0x88-Brettlayout.
+     */
     function generate_moves(options) {
-        function add_move(board, moves, from, to, flags) {
-            /* if pawn promotion */
+        function add_move(board, moves, from, to, flags, promotion = undefined, meta = {}) {
+            /* pawn promotion */
             if (
                 board[from].type === PAWN &&
                 (rank(to) === RANK_8 || rank(to) === RANK_1)
             ) {
-                var pieces = [QUEEN, ROOK, BISHOP, KNIGHT]
-                for (var i = 0, len = pieces.length; i < len; i++) {
-                    moves.push(build_move(board, from, to, flags, pieces[i]))
+                var pieces = [QUEEN, ROOK, BISHOP, KNIGHT];
+                for (var i = 0; i < pieces.length; i++) {
+                    moves.push(build_move(board, from, to, flags, pieces[i], meta));
                 }
             } else {
-                moves.push(build_move(board, from, to, flags))
+                moves.push(build_move(board, from, to, flags, promotion, meta));
             }
         }
 
@@ -765,39 +1305,35 @@ export const Chess = function (fen) {
 
         /* check for castling if: a) we're generating all moves, or b) we're doing
          * single square move generation on the king's square
+         * Chess960-Version
          */
         if (piece_type === true || piece_type === KING) {
             if (!single_square || last_sq === kings[us]) {
-                /* king-side castling */
-                if (castling[us] & BITS.KSIDE_CASTLE) {
-                    var castling_from = kings[us]
-                    var castling_to = castling_from + 2
+                const cmoves = castling_moves[us];
 
-                    if (
-                        board[castling_from + 1] == null &&
-                        board[castling_to] == null &&
-                        !attacked(them, kings[us]) &&
-                        !attacked(them, castling_from + 1) &&
-                        !attacked(them, castling_to)
-                    ) {
-                        add_move(board, moves, kings[us], castling_to, BITS.KSIDE_CASTLE)
-                    }
-                }
+                const castlingTypes = [
+                    [BITS.KSIDE_CASTLE, cmoves.kingside],
+                    [BITS.QSIDE_CASTLE, cmoves.queenside],
+                ];
 
-                /* queen-side castling */
-                if (castling[us] & BITS.QSIDE_CASTLE) {
-                    var castling_from = kings[us]
-                    var castling_to = castling_from - 2
+                for (const [flag, move] of castlingTypes) {
+                    if (!(castling[us] & flag)) continue;
+                    if (!move) continue;
 
-                    if (
-                        board[castling_from - 1] == null &&
-                        board[castling_from - 2] == null &&
-                        board[castling_from - 3] == null &&
-                        !attacked(them, kings[us]) &&
-                        !attacked(them, castling_from - 1) &&
-                        !attacked(them, castling_to)
-                    ) {
-                        add_move(board, moves, kings[us], castling_to, BITS.QSIDE_CASTLE)
+                    const { king_from, king_to, rook_from, rook_to } = move;
+                    const is_castling_legal = iscastlinglegal(king_from, king_to, rook_from, rook_to, us);
+
+                    // Zug nur hinzufügen, wenn Rochade erlaubt ist.
+                    if (is_castling_legal) {
+                        add_move(
+                            board,
+                            moves,
+                            king_from,
+                            king_to,
+                            flag,
+                            null,
+                            { rook_from, rook_to }
+                        );
                     }
                 }
             }
@@ -805,6 +1341,7 @@ export const Chess = function (fen) {
 
         /* return all pseudo-legal moves (this includes moves that allow the king
          * to be captured)
+         * (Da habe ich leise Zweifel. Auch der Originalcode machte eine Prüfung der Rochade-Legalität.)
          */
         if (!legal) {
             return moves
@@ -813,13 +1350,12 @@ export const Chess = function (fen) {
         /* filter out illegal moves */
         var legal_moves = []
         for (var i = 0, len = moves.length; i < len; i++) {
-            make_move(moves[i])
+            make_move(moves[i]);
             if (!king_attacked(us)) {
                 legal_moves.push(moves[i])
             }
-            undo_move()
+            undo_move();
         }
-
         return legal_moves
     }
 
@@ -836,11 +1372,26 @@ export const Chess = function (fen) {
     function move_to_san(move, moves) {
         var output = ''
 
-        if (move.flags & BITS.KSIDE_CASTLE) {
-            output = 'O-O'
-        } else if (move.flags & BITS.QSIDE_CASTLE) {
-            output = 'O-O-O'
-        } else {
+        // zusätzliche Prüfung aus Debugging-Gründen.
+        if (!move || typeof move.from === 'undefined' || !board[move.from]) {
+            console.warn("⚠️ Ungültiger Zug in chess.mjs.move_to_san()", move);
+            return "?";
+        }
+
+        if (is_castling(move)) {
+            // Bestimme die Grundreihe des ziehenden Königs aus dem Ursprungsfeld
+            const r = rank(move.from); // 7 = Weiß (1. Reihe), 0 = Schwarz (8. Reihe)
+
+            // Ziel-Felder für Rochade sind immer gleich, unabhängig vom Startfeld
+            const kingside_target = SQUARE_MAP['g' + (8 - r)]; // g1 oder g8
+            const queenside_target = SQUARE_MAP['c' + (8 - r)]; // c1 oder c8
+
+            if (move.to === kingside_target) {
+                output = 'O-O';
+            } else if (move.to === queenside_target) {
+                output = 'O-O-O';
+            }
+        }   else {
             if (move.piece !== PAWN) {
                 var disambiguator = get_disambiguator(move, moves)
                 output += move.piece.toUpperCase() + disambiguator
@@ -873,6 +1424,7 @@ export const Chess = function (fen) {
         return output
     }
 
+    /* Ermittelt, ob ein Feld durch eine gegnerische Figur (color) angegriffen wird */
     function attacked(color, square) {
         for (var i = SQUARE_MAP.a8; i <= SQUARE_MAP.h1; i++) {
             /* did we run off the end of the board */
@@ -920,6 +1472,7 @@ export const Chess = function (fen) {
         return false
     }
 
+    // prüft, ob der eigene König angegriffen wird. attacked() erwartet die gegnerische Farbe als Aufrufparameter.
     function king_attacked(color) {
         return attacked(swap_color(color), kings[color])
     }
@@ -1019,6 +1572,7 @@ export const Chess = function (fen) {
         return repetition
     }
 
+    // Chess960: Erweitert um rooks[]
     function push(move) {
         history.push({
             move: move,
@@ -1028,154 +1582,233 @@ export const Chess = function (fen) {
             ep_square: ep_square,
             half_moves: half_moves,
             move_number: move_number,
+            rooks: {
+                b: rooks.b.map(r => ({ square: r.square, flag: r.flag })),
+                w: rooks.w.map(r => ({ square: r.square, flag: r.flag })),
+            },
         })
     }
 
+    /**
+     * Führt einen Zug auf dem internen Brett aus, inklusive Spezialfälle wie
+     * Rochade, En-passant und Umwandlung. Aktualisiert alle relevanten Spielzustände
+     * wie Brettposition, Zugrecht, Rochaderechte, en-passant-Feld, 50-Züge-Regel und Zugnummer.
+     *
+     * @param {Object} move - Der auszuführende Zug. Erwartete Struktur:
+     *   {
+     *     from: number,             // Ausgangsfeld (0x88-Index)
+     *     to: number,               // Zielfeld (0x88-Index)
+     *     piece: string,            // Figurentyp ('p', 'n', 'b', 'r', 'q', 'k')
+     *     promotion?: string,       // Falls Umwandlung: neuer Figurentyp
+     *     flags: number,            // Bitfeld mit Zugtypen (z.B. Rochade, en-passant)
+     *     rook_from?: string,       // Nur bei Rochade: Ursprungsfeld des Turms (z.B. "h1")
+     *     rook_to?: string          // Nur bei Rochade: Zielfeld des Turms (z.B. "f1")
+     *   }
+     *
+     * @returns {void}
+     *
+     * Chess960: Anpassungen für Rochade, insbesondere, wenn König und Turm nebeneinander stehen
+     */
     function make_move(move) {
-        var us = turn
-        var them = swap_color(us)
-        push(move)
+        var us = turn;
+        var them = swap_color(us);
 
-        board[move.to] = board[move.from]
-        board[move.from] = null
+        let moving_piece = board[move.from];
 
-        /* if ep capture, remove the captured pawn */
+        // Zughistorie sichern (für Undo)
+        push(move);
+
+        // Rochade ausführen
+        if (moving_piece.type === KING && is_castling(move)) {
+            // Versuche zuerst, Rochade-Metadaten zu nutzen
+            let rook_from = move.rook_from;
+            let rook_to = move.rook_to;
+
+            if (typeof rook_from !== 'number' || typeof rook_to !== 'number') {
+                const kingside = (move.flags & BITS.KSIDE_CASTLE) !== 0;
+                const cmove = castling_moves[us][kingside ? 'kingside' : 'queenside'];
+
+                if (cmove && typeof cmove.rook_from === 'number' && typeof cmove.rook_to === 'number') {
+                    rook_from = cmove.rook_from;
+                    rook_to = cmove.rook_to;
+                } else {
+                    console.warn("⚠️ castling_moves fallback fehlt in make_move", { us, kingside, castling_moves });
+                }
+            }
+
+            const is_castling_legal = iscastlinglegal(move.from, move.to, rook_from, rook_to, us);
+
+            if (is_castling_legal) {
+                const rook_piece = board[rook_from];
+
+                if (rook_piece && rook_piece.type === ROOK && rook_piece.color === us) {
+                    board[move.from] = null;
+                    board[rook_from] = null;
+                    board[move.to] = moving_piece;
+                    board[rook_to] = rook_piece;
+                } else {
+                    console.warn("⚠️ Ungültiger Turm bei Rochade:", { rook_from, rook_piece });
+                }
+            }
+
+        } else {
+            // König (ohne Rochade) oder andere Figur bewegen
+            board[move.to] = moving_piece;
+            board[move.from] = null;
+        }
+
+        // König versetzt → Rochaderechte entfernen & Königslage aktualisieren
+        if (moving_piece && moving_piece.type === KING) {
+            kings[us] = move.to;
+            castling[us] = 0;
+        }
+
+        // En-passant-Schlag entfernen
         if (move.flags & BITS.EP_CAPTURE) {
-            if (turn === BLACK) {
-                board[move.to - 16] = null
-            } else {
-                board[move.to + 16] = null
-            }
+            var ep_captured = us === WHITE ? move.to + 16 : move.to - 16;
+            board[ep_captured] = null;
         }
 
-        /* if pawn promotion, replace with new piece */
+        // Bauernumwandlung behandeln
         if (move.flags & BITS.PROMOTION) {
-            board[move.to] = { type: move.promotion, color: us }
+            board[move.to] = { type: move.promotion, color: us };
         }
 
-        /* if we moved the king */
-        if (board[move.to].type === KING) {
-            kings[board[move.to].color] = move.to
-
-            /* if we castled, move the rook next to the king */
-            if (move.flags & BITS.KSIDE_CASTLE) {
-                var castling_to = move.to - 1
-                var castling_from = move.to + 1
-                board[castling_to] = board[castling_from]
-                board[castling_from] = null
-            } else if (move.flags & BITS.QSIDE_CASTLE) {
-                var castling_to = move.to + 1
-                var castling_from = move.to - 2
-                board[castling_to] = board[castling_from]
-                board[castling_from] = null
-            }
-
-            /* turn off castling */
-            castling[us] = ''
-        }
-
-        /* turn off castling if we move a rook */
+        // Rochaderechte verlieren beim Bewegen eines Turms
         if (castling[us]) {
-            for (var i = 0, len = ROOKS[us].length; i < len; i++) {
+            for (var i = 0, len = rooks[us].length; i < len; i++) {
                 if (
-                    move.from === ROOKS[us][i].square &&
-                    castling[us] & ROOKS[us][i].flag
+                    move.from === rooks[us][i].square &&
+                    castling[us] & rooks[us][i].flag
                 ) {
-                    castling[us] ^= ROOKS[us][i].flag
-                    break
+                    castling[us] ^= rooks[us][i].flag;
+                    break;
                 }
             }
         }
 
-        /* turn off castling if we capture a rook */
+        // Rochaderechte verlieren beim Schlagen eines gegnerischen Turms
         if (castling[them]) {
-            for (var i = 0, len = ROOKS[them].length; i < len; i++) {
+            for (var i = 0, len = rooks[them].length; i < len; i++) {
                 if (
-                    move.to === ROOKS[them][i].square &&
-                    castling[them] & ROOKS[them][i].flag
+                    move.to === rooks[them][i].square &&
+                    castling[them] & rooks[them][i].flag
                 ) {
-                    castling[them] ^= ROOKS[them][i].flag
-                    break
+                    castling[them] ^= rooks[them][i].flag;
+                    break;
                 }
             }
         }
 
-        /* if big pawn move, update the en passant square */
+        // En-passant-Ziel setzen (nur bei Doppelschritt)
         if (move.flags & BITS.BIG_PAWN) {
-            if (turn === 'b') {
-                ep_square = move.to - 16
-            } else {
-                ep_square = move.to + 16
-            }
+            ep_square = us === BLACK ? move.to - 16 : move.to + 16;
         } else {
-            ep_square = EMPTY
+            ep_square = EMPTY;
         }
 
-        /* reset the 50 move counter if a pawn is moved or a piece is captured */
-        if (move.piece === PAWN) {
-            half_moves = 0
-        } else if (move.flags & (BITS.CAPTURE | BITS.EP_CAPTURE)) {
-            half_moves = 0
+        // 50-Zug-Regel: Zähler zurücksetzen bei Bauernzug oder Schlag
+        if (move.piece === PAWN || move.flags & (BITS.CAPTURE | BITS.EP_CAPTURE)) {
+            half_moves = 0;
         } else {
-            half_moves++
+            half_moves++;
         }
 
-        if (turn === BLACK) {
-            move_number++
+        // Zugnummer erhöhen nach Schwarz-Zug
+        if (us === BLACK) {
+            move_number++;
         }
-        turn = swap_color(turn)
+
+        //update_rooks(); // wichtig für zukünftige Rochaderechte
+        //prepare_castling_moves();
+
+        // Spielerwechsel
+        turn = them;
     }
 
+    /* Nimmt einen Zug zurück und stellt die vorherige Brettposition wieder her */
     function undo_move() {
-        var old = history.pop()
-        if (old == null) {
-            return null
-        }
+        const old = history.pop();
+        if (!old) return null;
 
-        var move = old.move
-        kings = old.kings
-        turn = old.turn
-        castling = old.castling
-        ep_square = old.ep_square
-        half_moves = old.half_moves
-        move_number = old.move_number
+        const move = old.move;
+        kings = old.kings;
+        turn = old.turn;
+        castling = old.castling;
+        ep_square = old.ep_square;
+        half_moves = old.half_moves;
+        move_number = old.move_number;
+        rooks = {
+            w: old.rooks.w.map(r => ({ square: r.square, flag: r.flag })),
+            b: old.rooks.b.map(r => ({ square: r.square, flag: r.flag })),
+        };
 
-        var us = turn
-        var them = swap_color(turn)
+        const us = turn;
+        const them = swap_color(turn);
 
-        board[move.from] = board[move.to]
-        board[move.from].type = move.piece // to undo any promotions
-        board[move.to] = null
-
-        if (move.flags & BITS.CAPTURE) {
-            board[move.to] = { type: move.captured, color: them }
-        } else if (move.flags & BITS.EP_CAPTURE) {
-            var index
-            if (us === BLACK) {
-                index = move.to - 16
+        // Rochade rückgängig machen, berücksichtigt Chess960
+        if (is_castling(move)) {
+            if (typeof move.rook_from === 'number' && typeof move.rook_to === 'number') {
+                board[move.to] = null;
+                board[move.rook_to] = null;
+                board[move.rook_from] = { type: ROOK, color: us };
+                board[move.from] = { type: KING, color: us };
             } else {
-                index = move.to + 16
+                console.warn("⚠️ Rochadedaten fehlen", move);
             }
-            board[index] = { type: PAWN, color: them }
+        } else {
+            // König (ohne Rochadezüge) oder andere bewegte Figur rückversetzen
+            const piece_type = (move.flags & BITS.PROMOTION) ? PAWN : move.piece;
+            board[move.from] = { type: piece_type, color: us };
+            board[move.to] = null; // Feld räumen (z. B. Königsziel)
         }
 
-        if (move.flags & (BITS.KSIDE_CASTLE | BITS.QSIDE_CASTLE)) {
-            var castling_to, castling_from
-            if (move.flags & BITS.KSIDE_CASTLE) {
-                castling_to = move.to + 1
-                castling_from = move.to - 1
-            } else if (move.flags & BITS.QSIDE_CASTLE) {
-                castling_to = move.to - 2
-                castling_from = move.to + 1
-            }
-
-            board[castling_to] = board[castling_from]
-            board[castling_from] = null
+        // Geschlagene Figur wiederherstellen
+        if (move.flags & BITS.CAPTURE) {
+            board[move.to] = { type: move.captured, color: them };
+        } else if (move.flags & BITS.EP_CAPTURE) {
+            const index = us === BLACK ? move.to - 16 : move.to + 16;
+            board[index] = { type: PAWN, color: them };
         }
 
-        return move
+        //update_rooks();
+        //prepare_castling_moves();
+        return move;
     }
 
+    // Chess960: Hilfsfunktion für move_from_san
+    function complete_move(legal) {
+        // Ergänze Chess960 Rochade-Metadaten, falls nötig
+        if ((legal.flags & (BITS.KSIDE_CASTLE | BITS.QSIDE_CASTLE)) &&
+            (legal.rook_from === undefined || legal.rook_to === undefined)) {
+
+            const side = (legal.flags & BITS.KSIDE_CASTLE) !== 0 ? 'kingside' : 'queenside';
+            const cmove = castling_moves[legal.color]?.[side];
+
+            if (cmove && typeof cmove.rook_from === 'number' && typeof cmove.rook_to === 'number') {
+                legal.rook_from = cmove.rook_from;
+                legal.rook_to = cmove.rook_to;
+            } else {
+                console.warn("⚠️ castling_moves unvollständig bei Legalitätsprüfung", {
+                    color: legal.color,
+                    side,
+                    flags: legal.flags,
+                    cmove,
+                });
+            }
+        }
+
+        // Ergänze captured (z. B. für En Passant)
+        if (typeof legal.captured === 'undefined') {
+            if (board[legal.to]) {
+                legal.captured = board[legal.to].type;
+            } else if (legal.flags & BITS.EP_CAPTURE) {
+                legal.captured = PAWN;
+            }
+        }
+
+        return legal;
+    }
     // convert a move from Standard Algebraic Notation (SAN) to 0x88 coordinates
     function move_from_san(move, sloppy) {
         // strip off any move decorations: e.g Nf3+?! becomes Nf3
@@ -1255,7 +1888,7 @@ export const Chess = function (fen) {
                 switch (parser) {
                     case PARSER_STRICT: {
                         if (clean_move === stripped_san(move_to_san(moves[i], moves))) {
-                            return moves[i]
+                            return complete_move(moves[i])
                         }
                         break
                     }
@@ -1269,7 +1902,7 @@ export const Chess = function (fen) {
                                 SQUARE_MAP[to] == moves[i].to &&
                                 (!promotion || promotion.toLowerCase() == moves[i].promotion)
                             ) {
-                                return moves[i]
+                                return complete_move(moves[i])
                             } else if (overly_disambiguated) {
                                 // SPECIAL CASE: we parsed a move string that may have an
                                 // unneeded rank/file disambiguator (e.g. Nge7).  The 'from'
@@ -1281,7 +1914,7 @@ export const Chess = function (fen) {
                                     (from == square[0] || from == square[1]) &&
                                     (!promotion || promotion.toLowerCase() == moves[i].promotion)
                                 ) {
-                                    return moves[i]
+                                    return complete_move(moves[i])
                                 }
                             }
                         }
@@ -1312,6 +1945,11 @@ export const Chess = function (fen) {
         return move
     }
 
+    /* Getter, ob Chess960 gespielt wird */
+    function isVariantChess960() {
+        return isChess960;
+    }
+
     /*****************************************************************************
      * DEBUGGING UTILITIES
      ****************************************************************************/
@@ -1340,6 +1978,12 @@ export const Chess = function (fen) {
         /***************************************************************************
          * PUBLIC API
          **************************************************************************/
+
+        // Chess960:
+        isVariantChess960: function() {
+            return isVariantChess960()
+        },
+
         load: function (fen) {
             return load(fen)
         },
@@ -1853,7 +2497,6 @@ export const Chess = function (fen) {
                     }
                 }
             }
-
             /* failed to find move */
             if (!move_obj) {
                 return null
@@ -1865,7 +2508,6 @@ export const Chess = function (fen) {
             var pretty_move = make_pretty(move_obj)
 
             make_move(move_obj)
-
             return pretty_move
         },
 
@@ -1988,4 +2630,11 @@ export const Chess = function (fen) {
             })
         },
     }
+}
+
+// Chess960 ergänzt:
+export {
+    Chess,
+    generateStartPositionFEN,
+    decodeChess960IdFromFEN
 }
