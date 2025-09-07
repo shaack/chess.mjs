@@ -20,7 +20,9 @@ describe("chess.mjs unit tests for Chess 960", function () {
     })
 
     it("should load a chess960 game from a valid chess960 fen and do castling", function() {
-        const chess = new Chess("nrkbrnbq/pppppppp/8/8/8/8/PPPPPPPP/NRKBRNBQ w KQkq - 0 1", {chess960: true})
+        const fen = "nrkbrnbq/pppppppp/8/8/8/8/PPPPPPPP/NRKBRNBQ w KQkq - 0 1"
+        const chess = new Chess(fen, {chess960: true})
+        assert.equal(chess.fen(), fen)
         assert.true(chess.move("f4"))
         assert.true(chess.move("Nb6"))
         assert.true(chess.move("Nb3"))
@@ -42,4 +44,5 @@ describe("chess.mjs unit tests for Chess 960", function () {
         console.log(chess.fen())
     })
 
+    // TODO load a PGN with SetUp and FEN
 })
