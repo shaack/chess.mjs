@@ -41,7 +41,8 @@ describe("chess.mjs unit tests for Chess 960", function () {
         assert.true(chess.move("Be7"))
         assert.true(chess.move("O-O-O"))
         assert.true(chess.move("Qg8"))
-        console.log(chess.fen())
+        assert.equal(chess.fen(), "1rk1r1q1/pp1nb1pp/1np2p2/3bpP2/6P1/1N3BN1/PPPP3P/2KRR1BQ w kq - 4 10")
+
     })
 
     it("should load a chess960 game from a valid chess960 pgn", function() {
@@ -68,7 +69,7 @@ N3xd4 exd4 28. Bxd4 Nac5 29. Bxf6 Nxf6 30. c7 b3 31. axb3 Na6 32. Kb1 Nb4
 33. Qc4 Ne8 34. Rd8 Qxf5+ 35. Ka1 Nc2+ 36. Qxc2 1-0`
         const chess = new Chess(null,{ chess960: true })
         chess.load_pgn(pgn)
-        console.log(chess.pgn())
+        // console.log(chess.pgn())
         assert.equal(chess.fen(), "2rRn2k/2P3pp/8/pN3q2/8/1P6/1PQ4P/K5R1 b - - 0 36")
     })
 })

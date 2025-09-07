@@ -33,16 +33,6 @@ import { SQUARE_MAP } from './squares.js'
 export { SQUARES } from './squares.js'
 export { FLAGS } from './constants.js'
 
-
-
-
-
-
-
-
-
-
-
 const ROOKS = {
     w: [
         { square: SQUARE_MAP.a1, flag: BITS.QSIDE_CASTLE },
