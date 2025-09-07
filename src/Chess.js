@@ -25,6 +25,10 @@
  *
  *----------------------------------------------------------------------------*/
 
+import { rank, file, algebraic, swap_color, is_digit, clone, trim } from './utils.js'
+import { get_disambiguator, infer_piece_type, stripped_san } from './san.js'
+import { validate_fen as validateFEN, generate_fen as generateFEN } from './fen.js'
+
 const SYMBOLS = 'pnbrqkPNBRQK'
 
 const DEFAULT_POSITION =
@@ -131,119 +135,13 @@ const PARSER_STRICT = 0
 const PARSER_SLOPPY = 1
 
 /* this function is used to uniquely identify ambiguous moves */
-function get_disambiguator(move, moves) {
-    var from = move.from
-    var to = move.to
-    var piece = move.piece
 
-    var ambiguities = 0
-    var same_rank = 0
-    var same_file = 0
 
-    for (var i = 0, len = moves.length; i < len; i++) {
-        var ambig_from = moves[i].from
-        var ambig_to = moves[i].to
-        var ambig_piece = moves[i].piece
-
-        /* if a move of the same piece type ends on the same to square, we'll
-         * need to add a disambiguator to the algebraic notation
-         */
-        if (piece === ambig_piece && from !== ambig_from && to === ambig_to) {
-            ambiguities++
-
-            if (rank(from) === rank(ambig_from)) {
-                same_rank++
-            }
-
-            if (file(from) === file(ambig_from)) {
-                same_file++
-            }
-        }
-    }
-
-    if (ambiguities > 0) {
-        /* if there exists a similar moving piece on the same rank and file as
-         * the move in question, use the square as the disambiguator
-         */
-        if (same_rank > 0 && same_file > 0) {
-            return algebraic(from)
-        } else if (same_file > 0) {
-            /* if the moving piece rests on the same file, use the rank symbol as the
-             * disambiguator
-             */
-            return algebraic(from).charAt(1)
-        } else {
-            /* else use the file symbol */
-            return algebraic(from).charAt(0)
-        }
-    }
-
-    return ''
-}
-
-function infer_piece_type(san) {
-    var piece_type = san.charAt(0)
-    if (piece_type >= 'a' && piece_type <= 'h') {
-        var matches = san.match(/[a-h]\d.*[a-h]\d/)
-        if (matches) {
-            return undefined
-        }
-        return PAWN
-    }
-    piece_type = piece_type.toLowerCase()
-    if (piece_type === 'o') {
-        return KING
-    }
-    return piece_type
-}
-
-// parses all of the decorators out of a SAN string
-function stripped_san(move) {
-    return move.replace(/=/, '').replace(/[+#]?[?!]*$/, '')
-}
 
 /*****************************************************************************
  * UTILITY FUNCTIONS
  ****************************************************************************/
-function rank(i) {
-    return i >> 4
-}
-
-function file(i) {
-    return i & 15
-}
-
-function algebraic(i) {
-    var f = file(i),
-        r = rank(i)
-    return 'abcdefgh'.substring(f, f + 1) + '87654321'.substring(r, r + 1)
-}
-
-function swap_color(c) {
-    return c === WHITE ? BLACK : WHITE
-}
-
-function is_digit(c) {
-    return '0123456789'.indexOf(c) !== -1
-}
-
-function clone(obj) {
-    var dupe = obj instanceof Array ? [] : {}
-
-    for (var property in obj) {
-        if (typeof property === 'object') {
-            dupe[property] = clone(obj[property])
-        } else {
-            dupe[property] = obj[property]
-        }
-    }
-
-    return dupe
-}
-
-function trim(str) {
-    return str.replace(/^\s+|\s+$/g, '')
-}
+// moved to ./utils.js
 
 /***************************************************************************
  * PUBLIC CONSTANTS
@@ -418,146 +316,22 @@ export const Chess = function (fen, options) {
      * we're at it
      */
     function validate_fen(fen) {
-        var errors = {
-            0: 'No errors.',
-            1: 'FEN string must contain six space-delimited fields.',
-            2: '6th field (move number) must be a positive integer.',
-            3: '5th field (half move counter) must be a non-negative integer.',
-            4: '4th field (en-passant square) is invalid.',
-            5: '3rd field (castling availability) is invalid.',
-            6: '2nd field (side to move) is invalid.',
-            7: "1st field (piece positions) does not contain 8 '/'-delimited rows.",
-            8: '1st field (piece positions) is invalid [consecutive numbers].',
-            9: '1st field (piece positions) is invalid [invalid piece].',
-            10: '1st field (piece positions) is invalid [row too large].',
-            11: 'Illegal en-passant square',
-        }
-
-        /* 1st criterion: 6 space-seperated fields? */
-        var tokens = fen.split(/\s+/)
-        if (tokens.length !== 6) {
-            return { valid: false, error_number: 1, error: errors[1] }
-        }
-
-        /* 2nd criterion: move number field is a integer value > 0? */
-        if (isNaN(parseInt(tokens[5])) || parseInt(tokens[5], 10) <= 0) {
-            return { valid: false, error_number: 2, error: errors[2] }
-        }
-
-        /* 3rd criterion: half move counter is an integer >= 0? */
-        if (isNaN(parseInt(tokens[4])) || parseInt(tokens[4], 10) < 0) {
-            return { valid: false, error_number: 3, error: errors[3] }
-        }
-
-        /* 4th criterion: 4th field is a valid e.p.-string? */
-        if (!/^(-|[abcdefgh][36])$/.test(tokens[3])) {
-            return { valid: false, error_number: 4, error: errors[4] }
-        }
-
-        /* 5th criterion: 3th field is a valid castle-string? */
-        if (!/^(KQ?k?q?|Qk?q?|kq?|q|-)$/.test(tokens[2])) {
-            return { valid: false, error_number: 5, error: errors[5] }
-        }
-
-        /* 6th criterion: 2nd field is "w" (white) or "b" (black)? */
-        if (!/^(w|b)$/.test(tokens[1])) {
-            return { valid: false, error_number: 6, error: errors[6] }
-        }
-
-        /* 7th criterion: 1st field contains 8 rows? */
-        var rows = tokens[0].split('/')
-        if (rows.length !== 8) {
-            return { valid: false, error_number: 7, error: errors[7] }
-        }
-
-        /* 8th criterion: every row is valid? */
-        for (var i = 0; i < rows.length; i++) {
-            /* check for right sum of fields AND not two numbers in succession */
-            var sum_fields = 0
-            var previous_was_number = false
-
-            for (var k = 0; k < rows[i].length; k++) {
-                if (!isNaN(rows[i][k])) {
-                    if (previous_was_number) {
-                        return { valid: false, error_number: 8, error: errors[8] }
-                    }
-                    sum_fields += parseInt(rows[i][k], 10)
-                    previous_was_number = true
-                } else {
-                    if (!/^[prnbqkPRNBQK]$/.test(rows[i][k])) {
-                        return { valid: false, error_number: 9, error: errors[9] }
-                    }
-                    sum_fields += 1
-                    previous_was_number = false
-                }
-            }
-            if (sum_fields !== 8) {
-                return { valid: false, error_number: 10, error: errors[10] }
-            }
-        }
-
-        if (
-            (tokens[3][1] == '3' && tokens[1] == 'w') ||
-            (tokens[3][1] == '6' && tokens[1] == 'b')
-        ) {
-            return { valid: false, error_number: 11, error: errors[11] }
-        }
-
-        /* everything's okay! */
-        return { valid: true, error_number: 0, error: errors[0] }
+        return validateFEN(fen)
     }
 
     function generate_fen() {
-        var empty = 0
-        var fen = ''
-
-        for (var i = SQUARE_MAP.a8; i <= SQUARE_MAP.h1; i++) {
-            if (board[i] == null) {
-                empty++
-            } else {
-                if (empty > 0) {
-                    fen += empty
-                    empty = 0
-                }
-                var color = board[i].color
-                var piece = board[i].type
-
-                fen += color === WHITE ? piece.toUpperCase() : piece.toLowerCase()
-            }
-
-            if ((i + 1) & 0x88) {
-                if (empty > 0) {
-                    fen += empty
-                }
-
-                if (i !== SQUARE_MAP.h1) {
-                    fen += '/'
-                }
-
-                empty = 0
-                i += 8
-            }
-        }
-
-        var cflags = ''
-        if (castling[WHITE] & BITS.KSIDE_CASTLE) {
-            cflags += 'K'
-        }
-        if (castling[WHITE] & BITS.QSIDE_CASTLE) {
-            cflags += 'Q'
-        }
-        if (castling[BLACK] & BITS.KSIDE_CASTLE) {
-            cflags += 'k'
-        }
-        if (castling[BLACK] & BITS.QSIDE_CASTLE) {
-            cflags += 'q'
-        }
-
-        /* do we have an empty castling flag? */
-        cflags = cflags || '-'
-        var epflags = ep_square === EMPTY ? '-' : algebraic(ep_square)
-
-        return [fen, turn, cflags, epflags, half_moves, move_number].join(' ')
+        return generateFEN(
+            board,
+            turn,
+            castling,
+            ep_square,
+            half_moves,
+            move_number,
+            SQUARE_MAP,
+            WHITE,
+            BLACK,
+            BITS
+        )
     }
 
     function set_header(args) {
