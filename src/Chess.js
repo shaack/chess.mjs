@@ -406,7 +406,7 @@ export const Chess = function (fen, options) {
         half_moves = parseInt(tokens[4], 10)
         move_number = parseInt(tokens[5], 10)
 
-        init_chess960_rooks_if_needed()
+        init_rooks()
         update_setup(generate_fen())
 
         return true
@@ -640,8 +640,8 @@ export const Chess = function (fen, options) {
         return piece
     }
 
-    function init_chess960_rooks_if_needed() {
-        if (!isChess960) return
+    function init_rooks() {
+        // if (!isChess960) return
         function set_for(color) {
             // find king and rooks on back rank
             var ksq = kings[color]

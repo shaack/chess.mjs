@@ -72,4 +72,14 @@ N3xd4 exd4 28. Bxd4 Nac5 29. Bxf6 Nxf6 30. c7 b3 31. axb3 Na6 32. Kb1 Nb4
         // console.log(chess.pgn())
         assert.equal(chess.fen(), "2rRn2k/2P3pp/8/pN3q2/8/1P6/1PQ4P/K5R1 b - - 0 36")
     })
+
+    it("should not have isolation problems with the rooks", function() {
+        // First create a Chess960 game with rooks in non-standard positions
+        const chess960 = new Chess("qbnnbrkr/pppppppp/8/8/8/8/PPPPPPPP/QBNNBRKR w KQkq - 0 1", { chess960: true })
+        console.log(chess960.fen())
+// Now create a regular chess game
+        const regularChess = new Chess()
+        console.log(regularChess.fen())
+
+    })
 })
