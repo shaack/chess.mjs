@@ -25,13 +25,96 @@
  *
  *----------------------------------------------------------------------------*/
 
-import { rank, file, algebraic, swap_color, is_digit, clone, trim } from './utils.js'
-import { get_disambiguator, infer_piece_type, stripped_san } from './san.js'
-import { validate_fen as validateFEN, generate_fen as generateFEN } from './fen.js'
-import { SYMBOLS, DEFAULT_POSITION, TERMINATION_MARKERS, PAWN_OFFSETS, PIECE_OFFSETS, ATTACKS, RAYS, SHIFTS, BITS, RANK_1, RANK_2, RANK_3, RANK_4, RANK_5, RANK_6, RANK_7, RANK_8, FLAGS } from './constants.js'
-import { SQUARE_MAP } from './squares.js'
-export { SQUARES } from './squares.js'
-export { FLAGS } from './constants.js'
+const SYMBOLS = 'pnbrqkPNBRQK'
+
+const DEFAULT_POSITION =
+    'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'
+
+const TERMINATION_MARKERS = ['1-0', '0-1', '1/2-1/2', '*']
+
+const PAWN_OFFSETS = {
+    b: [16, 32, 17, 15],
+    w: [-16, -32, -17, -15],
+}
+
+const PIECE_OFFSETS = {
+    n: [-18, -33, -31, -14, 18, 33, 31, 14],
+    b: [-17, -15, 17, 15],
+    r: [-16, 1, 16, -1],
+    q: [-17, -16, -15, 1, 17, 16, 15, -1],
+    k: [-17, -16, -15, 1, 17, 16, 15, -1],
+}
+
+// prettier-ignore
+const ATTACKS = [
+    20, 0, 0, 0, 0, 0, 0, 24,  0, 0, 0, 0, 0, 0,20, 0,
+    0,20, 0, 0, 0, 0, 0, 24,  0, 0, 0, 0, 0,20, 0, 0,
+    0, 0,20, 0, 0, 0, 0, 24,  0, 0, 0, 0,20, 0, 0, 0,
+    0, 0, 0,20, 0, 0, 0, 24,  0, 0, 0,20, 0, 0, 0, 0,
+    0, 0, 0, 0,20, 0, 0, 24,  0, 0,20, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0,20, 2, 24,  2,20, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 2,53, 56, 53, 2, 0, 0, 0, 0, 0, 0,
+    24,24,24,24,24,24,56,  0, 56,24,24,24,24,24,24, 0,
+    0, 0, 0, 0, 0, 2,53, 56, 53, 2, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0,20, 2, 24,  2,20, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0,20, 0, 0, 24,  0, 0,20, 0, 0, 0, 0, 0,
+    0, 0, 0,20, 0, 0, 0, 24,  0, 0, 0,20, 0, 0, 0, 0,
+    0, 0,20, 0, 0, 0, 0, 24,  0, 0, 0, 0,20, 0, 0, 0,
+    0,20, 0, 0, 0, 0, 0, 24,  0, 0, 0, 0, 0,20, 0, 0,
+    20, 0, 0, 0, 0, 0, 0, 24,  0, 0, 0, 0, 0, 0,20
+];
+
+// prettier-ignore
+const RAYS = [
+    17,  0,  0,  0,  0,  0,  0, 16,  0,  0,  0,  0,  0,  0, 15, 0,
+    0, 17,  0,  0,  0,  0,  0, 16,  0,  0,  0,  0,  0, 15,  0, 0,
+    0,  0, 17,  0,  0,  0,  0, 16,  0,  0,  0,  0, 15,  0,  0, 0,
+    0,  0,  0, 17,  0,  0,  0, 16,  0,  0,  0, 15,  0,  0,  0, 0,
+    0,  0,  0,  0, 17,  0,  0, 16,  0,  0, 15,  0,  0,  0,  0, 0,
+    0,  0,  0,  0,  0, 17,  0, 16,  0, 15,  0,  0,  0,  0,  0, 0,
+    0,  0,  0,  0,  0,  0, 17, 16, 15,  0,  0,  0,  0,  0,  0, 0,
+    1,  1,  1,  1,  1,  1,  1,  0, -1, -1,  -1,-1, -1, -1, -1, 0,
+    0,  0,  0,  0,  0,  0,-15,-16,-17,  0,  0,  0,  0,  0,  0, 0,
+    0,  0,  0,  0,  0,-15,  0,-16,  0,-17,  0,  0,  0,  0,  0, 0,
+    0,  0,  0,  0,-15,  0,  0,-16,  0,  0,-17,  0,  0,  0,  0, 0,
+    0,  0,  0,-15,  0,  0,  0,-16,  0,  0,  0,-17,  0,  0,  0, 0,
+    0,  0,-15,  0,  0,  0,  0,-16,  0,  0,  0,  0,-17,  0,  0, 0,
+    0,-15,  0,  0,  0,  0,  0,-16,  0,  0,  0,  0,  0,-17,  0, 0,
+    -15,  0,  0,  0,  0,  0,  0,-16,  0,  0,  0,  0,  0,  0,-17
+];
+
+const SHIFTS = { p: 0, n: 1, b: 2, r: 3, q: 4, k: 5 }
+
+const BITS = {
+    NORMAL: 1,
+    CAPTURE: 2,
+    BIG_PAWN: 4,
+    EP_CAPTURE: 8,
+    PROMOTION: 16,
+    KSIDE_CASTLE: 32,
+    QSIDE_CASTLE: 64,
+}
+
+const RANK_1 = 7
+const RANK_2 = 6
+const RANK_3 = 5
+const RANK_4 = 4
+const RANK_5 = 3
+const RANK_6 = 2
+const RANK_7 = 1
+const RANK_8 = 0
+
+// prettier-ignore
+const SQUARE_MAP = {
+    a8:   0, b8:   1, c8:   2, d8:   3, e8:   4, f8:   5, g8:   6, h8:   7,
+    a7:  16, b7:  17, c7:  18, d7:  19, e7:  20, f7:  21, g7:  22, h7:  23,
+    a6:  32, b6:  33, c6:  34, d6:  35, e6:  36, f6:  37, g6:  38, h6:  39,
+    a5:  48, b5:  49, c5:  50, d5:  51, e5:  52, f5:  53, g5:  54, h5:  55,
+    a4:  64, b4:  65, c4:  66, d4:  67, e4:  68, f4:  69, g4:  70, h4:  71,
+    a3:  80, b3:  81, c3:  82, d3:  83, e3:  84, f3:  85, g3:  86, h3:  87,
+    a2:  96, b2:  97, c2:  98, d2:  99, e2: 100, f2: 101, g2: 102, h2: 103,
+    a1: 112, b1: 113, c1: 114, d1: 115, e1: 116, f1: 117, g1: 118, h1: 119
+};
 
 const ROOKS = {
     w: [
@@ -48,13 +131,119 @@ const PARSER_STRICT = 0
 const PARSER_SLOPPY = 1
 
 /* this function is used to uniquely identify ambiguous moves */
+function get_disambiguator(move, moves) {
+    var from = move.from
+    var to = move.to
+    var piece = move.piece
 
+    var ambiguities = 0
+    var same_rank = 0
+    var same_file = 0
 
+    for (var i = 0, len = moves.length; i < len; i++) {
+        var ambig_from = moves[i].from
+        var ambig_to = moves[i].to
+        var ambig_piece = moves[i].piece
+
+        /* if a move of the same piece type ends on the same to square, we'll
+         * need to add a disambiguator to the algebraic notation
+         */
+        if (piece === ambig_piece && from !== ambig_from && to === ambig_to) {
+            ambiguities++
+
+            if (rank(from) === rank(ambig_from)) {
+                same_rank++
+            }
+
+            if (file(from) === file(ambig_from)) {
+                same_file++
+            }
+        }
+    }
+
+    if (ambiguities > 0) {
+        /* if there exists a similar moving piece on the same rank and file as
+         * the move in question, use the square as the disambiguator
+         */
+        if (same_rank > 0 && same_file > 0) {
+            return algebraic(from)
+        } else if (same_file > 0) {
+            /* if the moving piece rests on the same file, use the rank symbol as the
+             * disambiguator
+             */
+            return algebraic(from).charAt(1)
+        } else {
+            /* else use the file symbol */
+            return algebraic(from).charAt(0)
+        }
+    }
+
+    return ''
+}
+
+function infer_piece_type(san) {
+    var piece_type = san.charAt(0)
+    if (piece_type >= 'a' && piece_type <= 'h') {
+        var matches = san.match(/[a-h]\d.*[a-h]\d/)
+        if (matches) {
+            return undefined
+        }
+        return PAWN
+    }
+    piece_type = piece_type.toLowerCase()
+    if (piece_type === 'o') {
+        return KING
+    }
+    return piece_type
+}
+
+// parses all of the decorators out of a SAN string
+function stripped_san(move) {
+    return move.replace(/=/, '').replace(/[+#]?[?!]*$/, '')
+}
 
 /*****************************************************************************
  * UTILITY FUNCTIONS
  ****************************************************************************/
-// moved to ./utils.js
+function rank(i) {
+    return i >> 4
+}
+
+function file(i) {
+    return i & 15
+}
+
+function algebraic(i) {
+    var f = file(i),
+        r = rank(i)
+    return 'abcdefgh'.substring(f, f + 1) + '87654321'.substring(r, r + 1)
+}
+
+function swap_color(c) {
+    return c === WHITE ? BLACK : WHITE
+}
+
+function is_digit(c) {
+    return '0123456789'.indexOf(c) !== -1
+}
+
+function clone(obj) {
+    var dupe = obj instanceof Array ? [] : {}
+
+    for (var property in obj) {
+        if (typeof property === 'object') {
+            dupe[property] = clone(obj[property])
+        } else {
+            dupe[property] = obj[property]
+        }
+    }
+
+    return dupe
+}
+
+function trim(str) {
+    return str.replace(/^\s+|\s+$/g, '')
+}
 
 /***************************************************************************
  * PUBLIC CONSTANTS
@@ -72,7 +261,33 @@ export const ROOK = 'r'
 export const QUEEN = 'q'
 export const KING = 'k'
 
+export const SQUARES = (function () {
+    /* from the ECMA-262 spec (section 12.6.4):
+     * "The mechanics of enumerating the properties ... is
+     * implementation dependent"
+     * so: for (var sq in SQUARES) { keys.push(sq); } might not be
+     * ordered correctly
+     */
+    var keys = []
+    for (var i = SQUARE_MAP.a8; i <= SQUARE_MAP.h1; i++) {
+        if (i & 0x88) {
+            i += 7
+            continue
+        }
+        keys.push(algebraic(i))
+    }
+    return keys
+})()
 
+export const FLAGS = {
+    NORMAL: 'n',
+    CAPTURE: 'c',
+    BIG_PAWN: 'b',
+    EP_CAPTURE: 'e',
+    PROMOTION: 'p',
+    KSIDE_CASTLE: 'k',
+    QSIDE_CASTLE: 'q',
+}
 
 export const Chess = function (fen, options) {
     var board = new Array(128)
@@ -203,22 +418,146 @@ export const Chess = function (fen, options) {
      * we're at it
      */
     function validate_fen(fen) {
-        return validateFEN(fen)
+        var errors = {
+            0: 'No errors.',
+            1: 'FEN string must contain six space-delimited fields.',
+            2: '6th field (move number) must be a positive integer.',
+            3: '5th field (half move counter) must be a non-negative integer.',
+            4: '4th field (en-passant square) is invalid.',
+            5: '3rd field (castling availability) is invalid.',
+            6: '2nd field (side to move) is invalid.',
+            7: "1st field (piece positions) does not contain 8 '/'-delimited rows.",
+            8: '1st field (piece positions) is invalid [consecutive numbers].',
+            9: '1st field (piece positions) is invalid [invalid piece].',
+            10: '1st field (piece positions) is invalid [row too large].',
+            11: 'Illegal en-passant square',
+        }
+
+        /* 1st criterion: 6 space-seperated fields? */
+        var tokens = fen.split(/\s+/)
+        if (tokens.length !== 6) {
+            return { valid: false, error_number: 1, error: errors[1] }
+        }
+
+        /* 2nd criterion: move number field is a integer value > 0? */
+        if (isNaN(parseInt(tokens[5])) || parseInt(tokens[5], 10) <= 0) {
+            return { valid: false, error_number: 2, error: errors[2] }
+        }
+
+        /* 3rd criterion: half move counter is an integer >= 0? */
+        if (isNaN(parseInt(tokens[4])) || parseInt(tokens[4], 10) < 0) {
+            return { valid: false, error_number: 3, error: errors[3] }
+        }
+
+        /* 4th criterion: 4th field is a valid e.p.-string? */
+        if (!/^(-|[abcdefgh][36])$/.test(tokens[3])) {
+            return { valid: false, error_number: 4, error: errors[4] }
+        }
+
+        /* 5th criterion: 3th field is a valid castle-string? */
+        if (!/^(KQ?k?q?|Qk?q?|kq?|q|-)$/.test(tokens[2])) {
+            return { valid: false, error_number: 5, error: errors[5] }
+        }
+
+        /* 6th criterion: 2nd field is "w" (white) or "b" (black)? */
+        if (!/^(w|b)$/.test(tokens[1])) {
+            return { valid: false, error_number: 6, error: errors[6] }
+        }
+
+        /* 7th criterion: 1st field contains 8 rows? */
+        var rows = tokens[0].split('/')
+        if (rows.length !== 8) {
+            return { valid: false, error_number: 7, error: errors[7] }
+        }
+
+        /* 8th criterion: every row is valid? */
+        for (var i = 0; i < rows.length; i++) {
+            /* check for right sum of fields AND not two numbers in succession */
+            var sum_fields = 0
+            var previous_was_number = false
+
+            for (var k = 0; k < rows[i].length; k++) {
+                if (!isNaN(rows[i][k])) {
+                    if (previous_was_number) {
+                        return { valid: false, error_number: 8, error: errors[8] }
+                    }
+                    sum_fields += parseInt(rows[i][k], 10)
+                    previous_was_number = true
+                } else {
+                    if (!/^[prnbqkPRNBQK]$/.test(rows[i][k])) {
+                        return { valid: false, error_number: 9, error: errors[9] }
+                    }
+                    sum_fields += 1
+                    previous_was_number = false
+                }
+            }
+            if (sum_fields !== 8) {
+                return { valid: false, error_number: 10, error: errors[10] }
+            }
+        }
+
+        if (
+            (tokens[3][1] == '3' && tokens[1] == 'w') ||
+            (tokens[3][1] == '6' && tokens[1] == 'b')
+        ) {
+            return { valid: false, error_number: 11, error: errors[11] }
+        }
+
+        /* everything's okay! */
+        return { valid: true, error_number: 0, error: errors[0] }
     }
 
     function generate_fen() {
-        return generateFEN(
-            board,
-            turn,
-            castling,
-            ep_square,
-            half_moves,
-            move_number,
-            SQUARE_MAP,
-            WHITE,
-            BLACK,
-            BITS
-        )
+        var empty = 0
+        var fen = ''
+
+        for (var i = SQUARE_MAP.a8; i <= SQUARE_MAP.h1; i++) {
+            if (board[i] == null) {
+                empty++
+            } else {
+                if (empty > 0) {
+                    fen += empty
+                    empty = 0
+                }
+                var color = board[i].color
+                var piece = board[i].type
+
+                fen += color === WHITE ? piece.toUpperCase() : piece.toLowerCase()
+            }
+
+            if ((i + 1) & 0x88) {
+                if (empty > 0) {
+                    fen += empty
+                }
+
+                if (i !== SQUARE_MAP.h1) {
+                    fen += '/'
+                }
+
+                empty = 0
+                i += 8
+            }
+        }
+
+        var cflags = ''
+        if (castling[WHITE] & BITS.KSIDE_CASTLE) {
+            cflags += 'K'
+        }
+        if (castling[WHITE] & BITS.QSIDE_CASTLE) {
+            cflags += 'Q'
+        }
+        if (castling[BLACK] & BITS.KSIDE_CASTLE) {
+            cflags += 'k'
+        }
+        if (castling[BLACK] & BITS.QSIDE_CASTLE) {
+            cflags += 'q'
+        }
+
+        /* do we have an empty castling flag? */
+        cflags = cflags || '-'
+        var epflags = ep_square === EMPTY ? '-' : algebraic(ep_square)
+
+        return [fen, turn, cflags, epflags, half_moves, move_number].join(' ')
     }
 
     function set_header(args) {
