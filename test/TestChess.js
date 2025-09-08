@@ -194,6 +194,13 @@ describe("chess.mjs unit tests", function () {
         assert.true(result != null)
     })
 
-
+    it("should load non standard PGNs and then work correctly", function () {
+        const fen = "ppppkppp/pppppppp/pppppppp/pppppppp/8/8/8/RNBQKBNR w KQ - 0 1"
+        const chess = new Chess(fen)
+        assert.true(chess.move("e4") === null)
+        assert.true(chess.move("Ke2") !== null)
+        chess.load("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1")
+        assert.true(chess.move("e4"))
+    })
 
 })
