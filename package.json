@@ -1,6 +1,6 @@
 {
   "name": "chess.mjs",
-  "version": "2.2.1",
+  "version": "2.2.2",
   "description": "It's just the ES6 module version of chess.js",
   "main": "src/Chess.js",
   "type": "module",
