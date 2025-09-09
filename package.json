@@ -1,6 +1,6 @@
 {
   "name": "chess.mjs",
-  "version": "2.2.2",
+  "version": "2.2.3",
   "description": "It's just the ES6 module version of chess.js",
   "main": "src/Chess.js",
   "type": "module",
@@ -26,6 +26,5 @@
   "devDependencies": {
     "teevi": "^2.2.4"
   },
-  "dependencies": {
-  }
+  "dependencies": {}
 }
