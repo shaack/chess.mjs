@@ -6,7 +6,7 @@ import {Chess} from "../src/Chess.js"
 import {chess960StartPositions} from "./chess960StartPositions.js"
 import {Chess960} from "../src/Chess960.js";
 
-describe("chess.mjs unit tests for Chess 960", function () {
+describe("TestChess960", function () {
 
     it("should generate a valid FEN for Chess 960 based on the list in chess960StartPositions.js", () => {
         const chess = new Chess()

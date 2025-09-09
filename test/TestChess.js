@@ -4,7 +4,7 @@
 import {describe, it, assert} from "teevi/src/teevi.js"
 import {Chess, WHITE, BLACK} from "../src/Chess.js"
 
-describe("chess.mjs unit tests", function () {
+describe("TestChess", function () {
 
     it("should create empty Chess", () => {
         const chess = new Chess()
@@ -194,7 +194,7 @@ describe("chess.mjs unit tests", function () {
         assert.true(result != null)
     })
 
-    it("should load non standard PGNs and then work correctly", function () {
+    it("should load a non standard FEN and then work correctly", function () {
         const fen = "ppppkppp/pppppppp/pppppppp/pppppppp/8/8/8/RNBQKBNR w KQ - 0 1"
         const chess = new Chess(fen)
         assert.true(chess.move("e4") === null)
