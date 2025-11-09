@@ -76,10 +76,34 @@ N3xd4 exd4 28. Bxd4 Nac5 29. Bxf6 Nxf6 30. c7 b3 31. axb3 Na6 32. Kb1 Nb4
     it("should not have isolation problems with the rooks", function() {
         // First create a Chess960 game with rooks in non-standard positions
         const chess960 = new Chess("qbnnbrkr/pppppppp/8/8/8/8/PPPPPPPP/QBNNBRKR w KQkq - 0 1", { chess960: true })
-        console.log(chess960.fen())
-// Now create a regular chess game
-        const regularChess = new Chess()
-        console.log(regularChess.fen())
+        assert.equal(chess960.fen(), "qbnnbrkr/pppppppp/8/8/8/8/PPPPPPPP/QBNNBRKR w KQkq - 0 1")
+        assert.equal(chess960.chess960(), true)
+        // Now create a regular chess game
+        const regularChess = new Chess("qbnnbrkr/pppppppp/8/8/8/8/PPPPPPPP/QBNNBRKR w KQkq - 0 1")
+        assert.equal(regularChess.fen(), "qbnnbrkr/pppppppp/8/8/8/8/PPPPPPPP/QBNNBRKR w KQkq - 0 1")
+        assert.equal(regularChess.chess960(), false)
+    })
 
+    it("should do a queen site castling in chess960", function() {
+        const chess960 = new Chess("nqnrkbbr/pppppppp/8/8/8/8/PPPPPPPP/NQNRKBBR w KQkq - 0 1", { chess960: true })
+        assert.true(chess960.chess960())
+        assert.true(chess960.move("Nd3"))
+        assert.true(chess960.move("a5"))
+        // should castle in a chess960 variant
+        assert.true(chess960.move("O-O-O"))
+        // next assertion fails, because the root is missing after castling
+        // actual fen is "nqnrkbbr/1ppppppp/8/p7/8/3N4/PPPPPPPP/NQK2BBR b kq - 1 2"
+        assert.equal(chess960.fen(), "nqnrkbbr/1ppppppp/8/p7/8/3N4/PPPPPPPP/NQKR1BBR b kq - 0 1")
+    })
+
+    it("should not castle in standard chess", function() {
+        const standard = new Chess("nqnrkbbr/pppppppp/8/8/8/8/PPPPPPPP/NQNRKBBR w KQkq - 0 1")
+        assert.false(standard.chess960())
+        assert.true(standard.move("Nd3"))
+        assert.true(standard.move("a5"))
+        // should not castle in a standard variant
+        assert.false(standard.move("O-O-O"))
+        console.log(standard.pgn())
+        console.log(standard.fen())
     })
 })
