@@ -1155,17 +1155,39 @@ export const Chess = function (fen, options) {
             var rookToC = isK
                 ? (rankSide === RANK_1 ? SQUARE_MAP.f1 : SQUARE_MAP.f8)
                 : (rankSide === RANK_1 ? SQUARE_MAP.d1 : SQUARE_MAP.d8)
-            // If rook sits on king's destination in transposition castling, move rook first
+
+            // Handle different Chess960 castling scenarios
             if (move.to !== move.from) {
+                // King actually moves
                 if (rookFromC === move.to) {
+                    // Rook sits on king's destination - move rook first to avoid overwriting
                     board[rookToC] = board[rookFromC]
                     board[rookFromC] = null
+                    // Now move king
+                    board[move.to] = board[move.from]
+                    board[move.from] = null
+                } else if (rookFromC === move.from) {
+                    // Rook and king start on same square
+                    // Move king first
+                    board[move.to] = board[move.from]
+                    board[move.from] = null
+                    // Now place the rook at its destination (which might be the same square)
+                    if (rookToC !== move.from) {
+                        // Rook needs to move to a different square
+                        board[rookToC] = {type: ROOK, color: us}
+                    } else {
+                        // Rook stays at the same square where king and rook started
+                        board[rookFromC] = {type: ROOK, color: us}
+                    }
+                } else {
+                    // Normal case - king and rook on different squares, neither on each other's destination
+                    // Move king
+                    board[move.to] = board[move.from]
+                    board[move.from] = null
+                    // Rook will be moved in the section below (lines 1196-1223)
                 }
-                // now move king normally
-                board[move.to] = board[move.from]
-                board[move.from] = null
             } else {
-                // rook-move-only: king stays; only move rook
+                // Rook-move-only castling: king stays in place, only move rook
                 board[rookToC] = board[rookFromC]
                 board[rookFromC] = null
             }
@@ -1199,8 +1221,11 @@ export const Chess = function (fen, options) {
                     if (move.to !== move.from) {
                         var rTo = (rank(move.to) === RANK_1 ? SQUARE_MAP.f1 : SQUARE_MAP.f8)
                         var rFrom = ROOKS[us][1].square
-                        // If rook already moved (transposition), skip; else move it now
-                        if (board[rTo] == null || (board[rTo] && board[rTo].type !== ROOK)) {
+                        // Only move rook if:
+                        // 1. It wasn't already handled above (when rook and king started on same square)
+                        // 2. The rook is not already at its destination
+                        // 3. The destination is empty or doesn't have a rook already
+                        if (rFrom !== move.from && rFrom !== rTo && (board[rTo] == null || (board[rTo] && board[rTo].type !== ROOK))) {
                             board[rTo] = board[rFrom]
                             board[rFrom] = null
                         }
@@ -1216,7 +1241,11 @@ export const Chess = function (fen, options) {
                     if (move.to !== move.from) {
                         var rToQ = (rank(move.to) === RANK_1 ? SQUARE_MAP.d1 : SQUARE_MAP.d8)
                         var rFromQ = ROOKS[us][0].square
-                        if (board[rToQ] == null || (board[rToQ] && board[rToQ].type !== ROOK)) {
+                        // Only move rook if:
+                        // 1. It wasn't already handled above (when rook and king started on same square)
+                        // 2. The rook is not already at its destination
+                        // 3. The destination is empty or doesn't have a rook already
+                        if (rFromQ !== move.from && rFromQ !== rToQ && (board[rToQ] == null || (board[rToQ] && board[rToQ].type !== ROOK))) {
                             board[rToQ] = board[rFromQ]
                             board[rFromQ] = null
                         }
@@ -1332,9 +1361,12 @@ export const Chess = function (fen, options) {
                     rFromU = ROOKS[us][0].square
                     rToU = (rank(move.to) === RANK_1 ? SQUARE_MAP.d1 : SQUARE_MAP.d8)
                 }
-                // If king didn't move (rook-move-only), the king is already on move.from/move.to; just move rook back
-                board[rFromU] = board[rToU]
-                board[rToU] = null
+                // Only move rook back if it's not already at its original position
+                // (This handles the case where rook destination = rook starting position)
+                if (rFromU !== rToU) {
+                    board[rFromU] = board[rToU]
+                    board[rToU] = null
+                }
             } else {
                 var castling_to, castling_from
                 if (move.flags & BITS.KSIDE_CASTLE) {

@@ -91,9 +91,8 @@ N3xd4 exd4 28. Bxd4 Nac5 29. Bxf6 Nxf6 30. c7 b3 31. axb3 Na6 32. Kb1 Nb4
         assert.true(chess960.move("a5"))
         // should castle in a chess960 variant
         assert.true(chess960.move("O-O-O"))
-        // next assertion fails, because the root is missing after castling
-        // actual fen is "nqnrkbbr/1ppppppp/8/p7/8/3N4/PPPPPPPP/NQK2BBR b kq - 1 2"
-        assert.equal(chess960.fen(), "nqnrkbbr/1ppppppp/8/p7/8/3N4/PPPPPPPP/NQKR1BBR b kq - 0 1")
+        // The rook should remain at d1 after castling (king moves from e1 to c1, rook stays at d1)
+        assert.equal(chess960.fen(), "nqnrkbbr/1ppppppp/8/p7/8/3N4/PPPPPPPP/NQKR1BBR b kq - 1 2")
     })
 
     it("should not castle in standard chess", function() {
