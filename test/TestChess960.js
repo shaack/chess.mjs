@@ -93,6 +93,11 @@ N3xd4 exd4 28. Bxd4 Nac5 29. Bxf6 Nxf6 30. c7 b3 31. axb3 Na6 32. Kb1 Nb4
         assert.true(chess960.move("O-O-O"))
         // The rook should remain at d1 after castling (king moves from e1 to c1, rook stays at d1)
         assert.equal(chess960.fen(), "nqnrkbbr/1ppppppp/8/p7/8/3N4/PPPPPPPP/NQKR1BBR b kq - 1 2")
+
+        // another castling
+        const chess960_2 = new Chess("bnrqnkrb/pppppppp/8/8/8/8/PPPPPPPP/BNRQNKRB w KQkq - 0 1", { chess960: true })
+        assert.true(chess960_2.chess960())
+        assert.true(chess960_2.move("O-O"))
     })
 
     it("should not castle in standard chess", function() {
