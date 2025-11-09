@@ -47,43 +47,43 @@ const PIECE_OFFSETS = {
 
 // prettier-ignore
 const ATTACKS = [
-    20, 0, 0, 0, 0, 0, 0, 24,  0, 0, 0, 0, 0, 0,20, 0,
-    0,20, 0, 0, 0, 0, 0, 24,  0, 0, 0, 0, 0,20, 0, 0,
-    0, 0,20, 0, 0, 0, 0, 24,  0, 0, 0, 0,20, 0, 0, 0,
-    0, 0, 0,20, 0, 0, 0, 24,  0, 0, 0,20, 0, 0, 0, 0,
-    0, 0, 0, 0,20, 0, 0, 24,  0, 0,20, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0,20, 2, 24,  2,20, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 2,53, 56, 53, 2, 0, 0, 0, 0, 0, 0,
-    24,24,24,24,24,24,56,  0, 56,24,24,24,24,24,24, 0,
-    0, 0, 0, 0, 0, 2,53, 56, 53, 2, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0,20, 2, 24,  2,20, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0,20, 0, 0, 24,  0, 0,20, 0, 0, 0, 0, 0,
-    0, 0, 0,20, 0, 0, 0, 24,  0, 0, 0,20, 0, 0, 0, 0,
-    0, 0,20, 0, 0, 0, 0, 24,  0, 0, 0, 0,20, 0, 0, 0,
-    0,20, 0, 0, 0, 0, 0, 24,  0, 0, 0, 0, 0,20, 0, 0,
-    20, 0, 0, 0, 0, 0, 0, 24,  0, 0, 0, 0, 0, 0,20
-];
+    20, 0, 0, 0, 0, 0, 0, 24, 0, 0, 0, 0, 0, 0, 20, 0,
+    0, 20, 0, 0, 0, 0, 0, 24, 0, 0, 0, 0, 0, 20, 0, 0,
+    0, 0, 20, 0, 0, 0, 0, 24, 0, 0, 0, 0, 20, 0, 0, 0,
+    0, 0, 0, 20, 0, 0, 0, 24, 0, 0, 0, 20, 0, 0, 0, 0,
+    0, 0, 0, 0, 20, 0, 0, 24, 0, 0, 20, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 20, 2, 24, 2, 20, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 2, 53, 56, 53, 2, 0, 0, 0, 0, 0, 0,
+    24, 24, 24, 24, 24, 24, 56, 0, 56, 24, 24, 24, 24, 24, 24, 0,
+    0, 0, 0, 0, 0, 2, 53, 56, 53, 2, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 20, 2, 24, 2, 20, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 20, 0, 0, 24, 0, 0, 20, 0, 0, 0, 0, 0,
+    0, 0, 0, 20, 0, 0, 0, 24, 0, 0, 0, 20, 0, 0, 0, 0,
+    0, 0, 20, 0, 0, 0, 0, 24, 0, 0, 0, 0, 20, 0, 0, 0,
+    0, 20, 0, 0, 0, 0, 0, 24, 0, 0, 0, 0, 0, 20, 0, 0,
+    20, 0, 0, 0, 0, 0, 0, 24, 0, 0, 0, 0, 0, 0, 20
+]
 
 // prettier-ignore
 const RAYS = [
-    17,  0,  0,  0,  0,  0,  0, 16,  0,  0,  0,  0,  0,  0, 15, 0,
-    0, 17,  0,  0,  0,  0,  0, 16,  0,  0,  0,  0,  0, 15,  0, 0,
-    0,  0, 17,  0,  0,  0,  0, 16,  0,  0,  0,  0, 15,  0,  0, 0,
-    0,  0,  0, 17,  0,  0,  0, 16,  0,  0,  0, 15,  0,  0,  0, 0,
-    0,  0,  0,  0, 17,  0,  0, 16,  0,  0, 15,  0,  0,  0,  0, 0,
-    0,  0,  0,  0,  0, 17,  0, 16,  0, 15,  0,  0,  0,  0,  0, 0,
-    0,  0,  0,  0,  0,  0, 17, 16, 15,  0,  0,  0,  0,  0,  0, 0,
-    1,  1,  1,  1,  1,  1,  1,  0, -1, -1,  -1,-1, -1, -1, -1, 0,
-    0,  0,  0,  0,  0,  0,-15,-16,-17,  0,  0,  0,  0,  0,  0, 0,
-    0,  0,  0,  0,  0,-15,  0,-16,  0,-17,  0,  0,  0,  0,  0, 0,
-    0,  0,  0,  0,-15,  0,  0,-16,  0,  0,-17,  0,  0,  0,  0, 0,
-    0,  0,  0,-15,  0,  0,  0,-16,  0,  0,  0,-17,  0,  0,  0, 0,
-    0,  0,-15,  0,  0,  0,  0,-16,  0,  0,  0,  0,-17,  0,  0, 0,
-    0,-15,  0,  0,  0,  0,  0,-16,  0,  0,  0,  0,  0,-17,  0, 0,
-    -15,  0,  0,  0,  0,  0,  0,-16,  0,  0,  0,  0,  0,  0,-17
-];
+    17, 0, 0, 0, 0, 0, 0, 16, 0, 0, 0, 0, 0, 0, 15, 0,
+    0, 17, 0, 0, 0, 0, 0, 16, 0, 0, 0, 0, 0, 15, 0, 0,
+    0, 0, 17, 0, 0, 0, 0, 16, 0, 0, 0, 0, 15, 0, 0, 0,
+    0, 0, 0, 17, 0, 0, 0, 16, 0, 0, 0, 15, 0, 0, 0, 0,
+    0, 0, 0, 0, 17, 0, 0, 16, 0, 0, 15, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 17, 0, 16, 0, 15, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 17, 16, 15, 0, 0, 0, 0, 0, 0, 0,
+    1, 1, 1, 1, 1, 1, 1, 0, -1, -1, -1, -1, -1, -1, -1, 0,
+    0, 0, 0, 0, 0, 0, -15, -16, -17, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, -15, 0, -16, 0, -17, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, -15, 0, 0, -16, 0, 0, -17, 0, 0, 0, 0, 0,
+    0, 0, 0, -15, 0, 0, 0, -16, 0, 0, 0, -17, 0, 0, 0, 0,
+    0, 0, -15, 0, 0, 0, 0, -16, 0, 0, 0, 0, -17, 0, 0, 0,
+    0, -15, 0, 0, 0, 0, 0, -16, 0, 0, 0, 0, 0, -17, 0, 0,
+    -15, 0, 0, 0, 0, 0, 0, -16, 0, 0, 0, 0, 0, 0, -17
+]
 
-const SHIFTS = { p: 0, n: 1, b: 2, r: 3, q: 4, k: 5 }
+const SHIFTS = {p: 0, n: 1, b: 2, r: 3, q: 4, k: 5}
 
 const BITS = {
     NORMAL: 1,
@@ -106,24 +106,24 @@ const RANK_8 = 0
 
 // prettier-ignore
 const SQUARE_MAP = {
-    a8:   0, b8:   1, c8:   2, d8:   3, e8:   4, f8:   5, g8:   6, h8:   7,
-    a7:  16, b7:  17, c7:  18, d7:  19, e7:  20, f7:  21, g7:  22, h7:  23,
-    a6:  32, b6:  33, c6:  34, d6:  35, e6:  36, f6:  37, g6:  38, h6:  39,
-    a5:  48, b5:  49, c5:  50, d5:  51, e5:  52, f5:  53, g5:  54, h5:  55,
-    a4:  64, b4:  65, c4:  66, d4:  67, e4:  68, f4:  69, g4:  70, h4:  71,
-    a3:  80, b3:  81, c3:  82, d3:  83, e3:  84, f3:  85, g3:  86, h3:  87,
-    a2:  96, b2:  97, c2:  98, d2:  99, e2: 100, f2: 101, g2: 102, h2: 103,
+    a8: 0, b8: 1, c8: 2, d8: 3, e8: 4, f8: 5, g8: 6, h8: 7,
+    a7: 16, b7: 17, c7: 18, d7: 19, e7: 20, f7: 21, g7: 22, h7: 23,
+    a6: 32, b6: 33, c6: 34, d6: 35, e6: 36, f6: 37, g6: 38, h6: 39,
+    a5: 48, b5: 49, c5: 50, d5: 51, e5: 52, f5: 53, g5: 54, h5: 55,
+    a4: 64, b4: 65, c4: 66, d4: 67, e4: 68, f4: 69, g4: 70, h4: 71,
+    a3: 80, b3: 81, c3: 82, d3: 83, e3: 84, f3: 85, g3: 86, h3: 87,
+    a2: 96, b2: 97, c2: 98, d2: 99, e2: 100, f2: 101, g2: 102, h2: 103,
     a1: 112, b1: 113, c1: 114, d1: 115, e1: 116, f1: 117, g1: 118, h1: 119
-};
+}
 
 const ROOKS = {
     w: [
-        { square: SQUARE_MAP.a1, flag: BITS.QSIDE_CASTLE },
-        { square: SQUARE_MAP.h1, flag: BITS.KSIDE_CASTLE },
+        {square: SQUARE_MAP.a1, flag: BITS.QSIDE_CASTLE},
+        {square: SQUARE_MAP.h1, flag: BITS.KSIDE_CASTLE},
     ],
     b: [
-        { square: SQUARE_MAP.a8, flag: BITS.QSIDE_CASTLE },
-        { square: SQUARE_MAP.h8, flag: BITS.KSIDE_CASTLE },
+        {square: SQUARE_MAP.a8, flag: BITS.QSIDE_CASTLE},
+        {square: SQUARE_MAP.h8, flag: BITS.KSIDE_CASTLE},
     ],
 }
 
@@ -291,9 +291,9 @@ export const FLAGS = {
 
 export const Chess = function (fen, options) {
     var board = new Array(128)
-    var kings = { w: EMPTY, b: EMPTY }
+    var kings = {w: EMPTY, b: EMPTY}
     var turn = WHITE
-    var castling = { w: 0, b: 0 }
+    var castling = {w: 0, b: 0}
     var ep_square = EMPTY
     var half_moves = 0
     var move_number = 1
@@ -323,9 +323,9 @@ export const Chess = function (fen, options) {
         }
 
         board = new Array(128)
-        kings = { w: EMPTY, b: EMPTY }
+        kings = {w: EMPTY, b: EMPTY}
         turn = WHITE
-        castling = { w: 0, b: 0 }
+        castling = {w: 0, b: 0}
         ep_square = EMPTY
         half_moves = 0
         move_number = 1
@@ -382,7 +382,7 @@ export const Chess = function (fen, options) {
                 square += parseInt(piece, 10)
             } else {
                 var color = piece < 'a' ? WHITE : BLACK
-                put({ type: piece.toLowerCase(), color: color }, algebraic(square))
+                put({type: piece.toLowerCase(), color: color}, algebraic(square))
                 square++
             }
         }
@@ -436,38 +436,38 @@ export const Chess = function (fen, options) {
         /* 1st criterion: 6 space-seperated fields? */
         var tokens = fen.split(/\s+/)
         if (tokens.length !== 6) {
-            return { valid: false, error_number: 1, error: errors[1] }
+            return {valid: false, error_number: 1, error: errors[1]}
         }
 
         /* 2nd criterion: move number field is a integer value > 0? */
         if (isNaN(parseInt(tokens[5])) || parseInt(tokens[5], 10) <= 0) {
-            return { valid: false, error_number: 2, error: errors[2] }
+            return {valid: false, error_number: 2, error: errors[2]}
         }
 
         /* 3rd criterion: half move counter is an integer >= 0? */
         if (isNaN(parseInt(tokens[4])) || parseInt(tokens[4], 10) < 0) {
-            return { valid: false, error_number: 3, error: errors[3] }
+            return {valid: false, error_number: 3, error: errors[3]}
         }
 
         /* 4th criterion: 4th field is a valid e.p.-string? */
         if (!/^(-|[abcdefgh][36])$/.test(tokens[3])) {
-            return { valid: false, error_number: 4, error: errors[4] }
+            return {valid: false, error_number: 4, error: errors[4]}
         }
 
         /* 5th criterion: 3th field is a valid castle-string? */
         if (!/^(KQ?k?q?|Qk?q?|kq?|q|-)$/.test(tokens[2])) {
-            return { valid: false, error_number: 5, error: errors[5] }
+            return {valid: false, error_number: 5, error: errors[5]}
         }
 
         /* 6th criterion: 2nd field is "w" (white) or "b" (black)? */
         if (!/^(w|b)$/.test(tokens[1])) {
-            return { valid: false, error_number: 6, error: errors[6] }
+            return {valid: false, error_number: 6, error: errors[6]}
         }
 
         /* 7th criterion: 1st field contains 8 rows? */
         var rows = tokens[0].split('/')
         if (rows.length !== 8) {
-            return { valid: false, error_number: 7, error: errors[7] }
+            return {valid: false, error_number: 7, error: errors[7]}
         }
 
         /* 8th criterion: every row is valid? */
@@ -479,20 +479,20 @@ export const Chess = function (fen, options) {
             for (var k = 0; k < rows[i].length; k++) {
                 if (!isNaN(rows[i][k])) {
                     if (previous_was_number) {
-                        return { valid: false, error_number: 8, error: errors[8] }
+                        return {valid: false, error_number: 8, error: errors[8]}
                     }
                     sum_fields += parseInt(rows[i][k], 10)
                     previous_was_number = true
                 } else {
                     if (!/^[prnbqkPRNBQK]$/.test(rows[i][k])) {
-                        return { valid: false, error_number: 9, error: errors[9] }
+                        return {valid: false, error_number: 9, error: errors[9]}
                     }
                     sum_fields += 1
                     previous_was_number = false
                 }
             }
             if (sum_fields !== 8) {
-                return { valid: false, error_number: 10, error: errors[10] }
+                return {valid: false, error_number: 10, error: errors[10]}
             }
         }
 
@@ -500,11 +500,11 @@ export const Chess = function (fen, options) {
             (tokens[3][1] == '3' && tokens[1] == 'w') ||
             (tokens[3][1] == '6' && tokens[1] == 'b')
         ) {
-            return { valid: false, error_number: 11, error: errors[11] }
+            return {valid: false, error_number: 11, error: errors[11]}
         }
 
         /* everything's okay! */
-        return { valid: true, error_number: 0, error: errors[0] }
+        return {valid: true, error_number: 0, error: errors[0]}
     }
 
     function generate_fen() {
@@ -589,7 +589,7 @@ export const Chess = function (fen, options) {
 
     function get(square) {
         var piece = board[SQUARE_MAP[square]]
-        return piece ? { type: piece.type, color: piece.color } : null
+        return piece ? {type: piece.type, color: piece.color} : null
     }
 
     function put(piece, square) {
@@ -618,7 +618,7 @@ export const Chess = function (fen, options) {
             return false
         }
 
-        board[sq] = { type: piece.type, color: piece.color }
+        board[sq] = {type: piece.type, color: piece.color}
         if (piece.type === KING) {
             kings[piece.color] = sq
         }
@@ -667,6 +667,7 @@ export const Chess = function (fen, options) {
                 ROOKS[color][1].square = right_rook // KSIDE
             }
         }
+
         set_for(WHITE)
         set_for(BLACK)
     }
@@ -712,7 +713,7 @@ export const Chess = function (fen, options) {
         var moves = []
         var us = turn
         var them = swap_color(us)
-        var second_rank = { b: RANK_7, w: RANK_2 }
+        var second_rank = {b: RANK_7, w: RANK_2}
 
         var first_sq = SQUARE_MAP.a8
         var last_sq = SQUARE_MAP.h1
@@ -823,6 +824,7 @@ export const Chess = function (fen, options) {
                         }
                         return true
                     }
+
                     function king_path_safe(to) {
                         // king cannot castle out of, through, or into check
                         if (to === kFrom) {
@@ -836,6 +838,7 @@ export const Chess = function (fen, options) {
                         }
                         return true
                     }
+
                     function path_clear_for_rook(rookFrom, rookTo) {
                         var step = file(rookTo) > file(rookFrom) ? 1 : -1
                         for (var f = file(rookFrom) + step; f != file(rookTo) + step; f += step) {
@@ -1129,9 +1132,9 @@ export const Chess = function (fen, options) {
     function push(move) {
         history.push({
             move: move,
-            kings: { b: kings.b, w: kings.w },
+            kings: {b: kings.b, w: kings.w},
             turn: turn,
-            castling: { b: castling.b, w: castling.w },
+            castling: {b: castling.b, w: castling.w},
             ep_square: ep_square,
             half_moves: half_moves,
             move_number: move_number,
@@ -1182,7 +1185,7 @@ export const Chess = function (fen, options) {
 
         /* if pawn promotion, replace with new piece */
         if (move.flags & BITS.PROMOTION) {
-            board[move.to] = { type: move.promotion, color: us }
+            board[move.to] = {type: move.promotion, color: us}
         }
 
         /* if we moved the king */
@@ -1308,7 +1311,7 @@ export const Chess = function (fen, options) {
         }
 
         if (move.flags & BITS.CAPTURE) {
-            board[move.to] = { type: move.captured, color: them }
+            board[move.to] = {type: move.captured, color: them}
         } else if (move.flags & BITS.EP_CAPTURE) {
             var index
             if (us === BLACK) {
@@ -1316,7 +1319,7 @@ export const Chess = function (fen, options) {
             } else {
                 index = move.to + 16
             }
-            board[index] = { type: PAWN, color: them }
+            board[index] = {type: PAWN, color: them}
         }
 
         if (move.flags & (BITS.KSIDE_CASTLE | BITS.QSIDE_CASTLE)) {
@@ -1470,7 +1473,7 @@ export const Chess = function (fen, options) {
     /* pretty = external move object */
     function make_pretty(ugly_move) {
         var move = clone(ugly_move)
-        move.san = move_to_san(move, generate_moves({ legal: true }))
+        move.san = move_to_san(move, generate_moves({legal: true}))
         move.to = algebraic(move.to)
         move.from = algebraic(move.from)
 
@@ -1490,7 +1493,7 @@ export const Chess = function (fen, options) {
      * DEBUGGING UTILITIES
      ****************************************************************************/
     function perft(depth) {
-        var moves = generate_moves({ legal: false })
+        var moves = generate_moves({legal: false})
         var nodes = 0
         var color = turn
 
@@ -1544,7 +1547,7 @@ export const Chess = function (fen, options) {
                     moves.push(make_pretty(ugly_moves[i]))
                 } else {
                     moves.push(
-                        move_to_san(ugly_moves[i], generate_moves({ legal: true }))
+                        move_to_san(ugly_moves[i], generate_moves({legal: true}))
                     )
                 }
             }
@@ -1579,6 +1582,10 @@ export const Chess = function (fen, options) {
 
         in_threefold_repetition: function () {
             return in_threefold_repetition()
+        },
+
+        chess960: function () {
+            return isChess960
         },
 
         game_over: function () {
@@ -1693,7 +1700,7 @@ export const Chess = function (fen, options) {
                 }
 
                 move_string =
-                    move_string + ' ' + move_to_san(move, generate_moves({ legal: true }))
+                    move_string + ' ' + move_to_san(move, generate_moves({legal: true}))
                 make_move(move)
             }
 
@@ -2124,7 +2131,7 @@ export const Chess = function (fen, options) {
                 if (verbose) {
                     move_history.push(make_pretty(move))
                 } else {
-                    move_history.push(move_to_san(move, generate_moves({ legal: true })))
+                    move_history.push(move_to_san(move, generate_moves({legal: true})))
                 }
                 make_move(move)
             }
@@ -2149,7 +2156,7 @@ export const Chess = function (fen, options) {
         get_comments: function () {
             prune_comments()
             return Object.keys(comments).map(function (fen) {
-                return { fen: fen, comment: comments[fen] }
+                return {fen: fen, comment: comments[fen]}
             })
         },
 
@@ -2158,7 +2165,7 @@ export const Chess = function (fen, options) {
             return Object.keys(comments).map(function (fen) {
                 var comment = comments[fen]
                 delete comments[fen]
-                return { fen: fen, comment: comment }
+                return {fen: fen, comment: comment}
             })
         },
     }
