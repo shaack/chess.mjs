@@ -1160,12 +1160,22 @@ export const Chess = function (fen, options) {
             if (move.to !== move.from) {
                 // King actually moves
                 if (rookFromC === move.to) {
-                    // Rook sits on king's destination - move rook first to avoid overwriting
-                    board[rookToC] = board[rookFromC]
-                    board[rookFromC] = null
-                    // Now move king
-                    board[move.to] = board[move.from]
-                    board[move.from] = null
+                    // Rook sits on king's destination (transposition castling)
+                    // This is often a swap: king and rook exchange positions
+                    var kingPiece = board[move.from]
+                    var rookPiece = board[rookFromC]
+                    // Place both pieces at their destinations
+                    board[move.to] = kingPiece
+                    board[rookToC] = rookPiece
+                    // Only clear squares that aren't destinations
+                    // If rookToC === move.from, it's a perfect swap, no clearing needed
+                    // Otherwise clear the squares that are now empty
+                    if (rookToC !== move.from) {
+                        board[move.from] = null
+                    }
+                    if (rookFromC !== move.to && rookFromC !== rookToC && rookFromC !== move.from) {
+                        board[rookFromC] = null
+                    }
                 } else if (rookFromC === move.from) {
                     // Rook and king start on same square
                     // Move king first
@@ -1331,12 +1341,69 @@ export const Chess = function (fen, options) {
         var us = turn
         var them = swap_color(turn)
 
-        // Undo primary piece movement, except in Chess960 rook-move-only castling where the king didn't move
-        var skipKingUndo = isChess960 && (move.flags & (BITS.KSIDE_CASTLE | BITS.QSIDE_CASTLE)) && move.from === move.to
-        if (!skipKingUndo) {
-            board[move.from] = board[move.to]
-            board[move.from].type = move.piece // to undo any promotions
-            board[move.to] = null
+        // For Chess960 castling, we need to handle rook restoration first in some cases
+        var is960CastleUndo = isChess960 && (move.flags & (BITS.KSIDE_CASTLE | BITS.QSIDE_CASTLE))
+
+        if (is960CastleUndo) {
+            // Handle Chess960 castling undo specially
+            var rFromU, rToU
+            if (move.flags & BITS.KSIDE_CASTLE) {
+                rFromU = ROOKS[us][1].square
+                rToU = (rank(move.to) === RANK_1 ? SQUARE_MAP.f1 : SQUARE_MAP.f8)
+            } else {
+                rFromU = ROOKS[us][0].square
+                rToU = (rank(move.to) === RANK_1 ? SQUARE_MAP.d1 : SQUARE_MAP.d8)
+            }
+
+            // Check if this was a transposition castle (rook at king's destination)
+            var wasTransposition = rFromU === move.to
+
+            if (move.from === move.to) {
+                // Rook-move-only castling - only restore rook
+                if (rFromU !== rToU) {
+                    board[rFromU] = board[rToU]
+                    board[rToU] = null
+                }
+            } else if (wasTransposition) {
+                // King and rook swapped positions - restore both carefully
+                // After castling: board[move.to] has king, board[rToU] has rook
+                // Need to restore: king to move.from, rook to move.to (rFromU)
+                var kingPiece = board[move.to]
+                var rookPiece = board[rToU]
+                board[move.from] = kingPiece
+                board[rFromU] = rookPiece
+                // Only clear squares if they aren't being used by the restored pieces
+                if (move.to !== rFromU) {
+                    board[move.to] = null
+                }
+                if (rToU !== move.from && rToU !== rFromU) {
+                    board[rToU] = null
+                }
+            } else if (rFromU === move.from) {
+                // King and rook started on same square
+                board[move.from] = board[move.to]
+                board[move.to] = null
+                // Rook was placed separately, may need to be removed
+                if (rToU !== move.from && board[rToU] && board[rToU].type === ROOK) {
+                    board[rToU] = null
+                }
+            } else {
+                // Normal Chess960 castle - undo king move first
+                board[move.from] = board[move.to]
+                board[move.to] = null
+                // Then restore rook if it moved
+                if (rFromU !== rToU) {
+                    board[rFromU] = board[rToU]
+                    board[rToU] = null
+                }
+            }
+        } else {
+            // Standard chess or non-castling move
+            if (board[move.to]) {
+                board[move.from] = board[move.to]
+                board[move.from].type = move.piece // to undo any promotions
+                board[move.to] = null
+            }
         }
 
         if (move.flags & BITS.CAPTURE) {
@@ -1351,35 +1418,19 @@ export const Chess = function (fen, options) {
             board[index] = {type: PAWN, color: them}
         }
 
-        if (move.flags & (BITS.KSIDE_CASTLE | BITS.QSIDE_CASTLE)) {
-            if (isChess960) {
-                var rFromU, rToU
-                if (move.flags & BITS.KSIDE_CASTLE) {
-                    rFromU = ROOKS[us][1].square
-                    rToU = (rank(move.to) === RANK_1 ? SQUARE_MAP.f1 : SQUARE_MAP.f8)
-                } else if (move.flags & BITS.QSIDE_CASTLE) {
-                    rFromU = ROOKS[us][0].square
-                    rToU = (rank(move.to) === RANK_1 ? SQUARE_MAP.d1 : SQUARE_MAP.d8)
-                }
-                // Only move rook back if it's not already at its original position
-                // (This handles the case where rook destination = rook starting position)
-                if (rFromU !== rToU) {
-                    board[rFromU] = board[rToU]
-                    board[rToU] = null
-                }
-            } else {
-                var castling_to, castling_from
-                if (move.flags & BITS.KSIDE_CASTLE) {
-                    castling_to = move.to + 1
-                    castling_from = move.to - 1
-                } else if (move.flags & BITS.QSIDE_CASTLE) {
-                    castling_to = move.to - 2
-                    castling_from = move.to + 1
-                }
-
-                board[castling_to] = board[castling_from]
-                board[castling_from] = null
+        if (!is960CastleUndo && move.flags & (BITS.KSIDE_CASTLE | BITS.QSIDE_CASTLE)) {
+            // Standard chess castling undo
+            var castling_to, castling_from
+            if (move.flags & BITS.KSIDE_CASTLE) {
+                castling_to = move.to + 1
+                castling_from = move.to - 1
+            } else if (move.flags & BITS.QSIDE_CASTLE) {
+                castling_to = move.to - 2
+                castling_from = move.to + 1
             }
+
+            board[castling_to] = board[castling_from]
+            board[castling_from] = null
         }
 
         return move
