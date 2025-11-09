@@ -4,7 +4,7 @@
 import {describe, it, assert} from "teevi/src/teevi.js"
 import {Chess} from "../src/Chess.js"
 import {chess960StartPositions} from "./chess960StartPositions.js"
-import {Chess960} from "../src/Chess960.js";
+import {Chess960} from "../src/Chess960.js"
 
 describe("TestChess960", function () {
 
@@ -19,7 +19,7 @@ describe("TestChess960", function () {
         })
     })
 
-    it("should load a chess960 game from a valid chess960 fen and do castling", function() {
+    it("should load a chess960 game from a valid chess960 fen and do castling", function () {
         const fen = "nrkbrnbq/pppppppp/8/8/8/8/PPPPPPPP/NRKBRNBQ w KQkq - 0 1"
         const chess = new Chess(fen, {chess960: true})
         assert.equal(chess.fen(), fen)
@@ -45,7 +45,7 @@ describe("TestChess960", function () {
 
     })
 
-    it("should load a chess960 game from a valid chess960 pgn", function() {
+    it("should load a chess960 game from a valid chess960 pgn", function () {
         const pgn = `[Event "Freestyle Weissenhaus KO"]
 [Site "Wangels GER"]
 [Date "2025.02.09"]
@@ -67,15 +67,15 @@ O-O 15. Be3 Na4 16. Rg1 b5 17. c5 b4 18. Qf2 Rb5 19. Qc2 a5 20. d4 Ra8 21.
 g5 Kh8 22. gxf6 Bxf6 23. d5 cxd5 24. Nd6 Qf8 25. Nxb5 d4 26. c6 Rc8 27.
 N3xd4 exd4 28. Bxd4 Nac5 29. Bxf6 Nxf6 30. c7 b3 31. axb3 Na6 32. Kb1 Nb4
 33. Qc4 Ne8 34. Rd8 Qxf5+ 35. Ka1 Nc2+ 36. Qxc2 1-0`
-        const chess = new Chess(null,{ chess960: true })
+        const chess = new Chess(null, {chess960: true})
         chess.load_pgn(pgn)
         // console.log(chess.pgn())
         assert.equal(chess.fen(), "2rRn2k/2P3pp/8/pN3q2/8/1P6/1PQ4P/K5R1 b - - 0 36")
     })
 
-    it("should not have isolation problems with the rooks", function() {
+    it("should not have isolation problems with the rooks", function () {
         // First create a Chess960 game with rooks in non-standard positions
-        const chess960 = new Chess("qbnnbrkr/pppppppp/8/8/8/8/PPPPPPPP/QBNNBRKR w KQkq - 0 1", { chess960: true })
+        const chess960 = new Chess("qbnnbrkr/pppppppp/8/8/8/8/PPPPPPPP/QBNNBRKR w KQkq - 0 1", {chess960: true})
         assert.equal(chess960.fen(), "qbnnbrkr/pppppppp/8/8/8/8/PPPPPPPP/QBNNBRKR w KQkq - 0 1")
         assert.equal(chess960.chess960(), true)
         // Now create a regular chess game
@@ -83,9 +83,9 @@ N3xd4 exd4 28. Bxd4 Nac5 29. Bxf6 Nxf6 30. c7 b3 31. axb3 Na6 32. Kb1 Nb4
         assert.equal(regularChess.fen(), "qbnnbrkr/pppppppp/8/8/8/8/PPPPPPPP/QBNNBRKR w KQkq - 0 1")
         assert.equal(regularChess.chess960(), false)
     })
-    // TODO fix site side
-    it("should do a queen site castling in chess960", function() {
-        const chess960 = new Chess("nqnrkbbr/pppppppp/8/8/8/8/PPPPPPPP/NQNRKBBR w KQkq - 0 1", { chess960: true })
+
+    it("should do a queen side castling in chess960", function () {
+        const chess960 = new Chess("nqnrkbbr/pppppppp/8/8/8/8/PPPPPPPP/NQNRKBBR w KQkq - 0 1", {chess960: true})
         assert.true(chess960.chess960())
         assert.true(chess960.move("Nd3"))
         assert.true(chess960.move("a5"))
@@ -95,15 +95,15 @@ N3xd4 exd4 28. Bxd4 Nac5 29. Bxf6 Nxf6 30. c7 b3 31. axb3 Na6 32. Kb1 Nb4
         assert.equal(chess960.fen(), "nqnrkbbr/1ppppppp/8/p7/8/3N4/PPPPPPPP/NQKR1BBR b kq - 1 2")
     })
 
-    it("should do a king site castling in chess960", function() {
-        const chess960_2 = new Chess("bnrqnkrb/pppppppp/8/8/8/8/PPPPPPPP/BNRQNKRB w KQkq - 0 1", { chess960: true })
+    it("should do a king side castling in chess960", function () {
+        const chess960_2 = new Chess("bnrqnkrb/pppppppp/8/8/8/8/PPPPPPPP/BNRQNKRB w KQkq - 0 1", {chess960: true})
         assert.true(chess960_2.chess960())
         assert.true(chess960_2.move("O-O"))
         // King and rook swap positions: king f1->g1, rook g1->f1
         assert.equal(chess960_2.fen(), "bnrqnkrb/pppppppp/8/8/8/8/PPPPPPPP/BNRQNRKB b kq - 1 1")
     })
 
-    it("should not castle in standard chess", function() {
+    it("should not castle in standard chess", function () {
         const standard = new Chess("nqnrkbbr/pppppppp/8/8/8/8/PPPPPPPP/NQNRKBBR w KQkq - 0 1")
         assert.false(standard.chess960())
         assert.true(standard.move("Nd3"))
