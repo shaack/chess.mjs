@@ -87,10 +87,23 @@ export class Chess960 {
     }
 
     static detectStartPosition(fen) {
+        const ranks = fen.split('/')
         // Extract the white first rank from the FEN
-        const whiteRank = fen.split('/')[7].split(' ')[0]
+        const whiteRank = ranks[7].split(' ')[0]
         if (whiteRank.length !== 8) {
             throw new Error(`Invalid FEN for Chess960 detection: ${fen}`)
+        }
+        // Validate black back rank mirrors white back rank
+        const blackRank = ranks[0]
+        if (blackRank !== whiteRank.toLowerCase()) {
+            throw new Error(`Invalid Chess960 start position: black pieces don't mirror white pieces`)
+        }
+        // Validate pawn ranks
+        if (ranks[6] !== 'PPPPPPPP') {
+            throw new Error(`Invalid Chess960 start position: white pawns not on second rank`)
+        }
+        if (ranks[1] !== 'pppppppp') {
+            throw new Error(`Invalid Chess960 start position: black pawns not on seventh rank`)
         }
         const position = whiteRank.split('')
 

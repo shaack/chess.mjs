@@ -5,7 +5,7 @@
   "main": "src/Chess.js",
   "type": "module",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"To test, load ./test/index.html in a browser.\" && exit 1"
   },
   "repository": {
     "type": "git",
@@ -24,7 +24,7 @@
   },
   "homepage": "https://github.com/shaack/chess.mjs#readme",
   "devDependencies": {
-    "teevi": "^2.2.4"
+    "teevi": "^2.3.0"
   },
   "dependencies": {}
 }

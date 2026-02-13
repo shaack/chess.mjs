@@ -135,6 +135,28 @@ N3xd4 exd4 28. Bxd4 Nac5 29. Bxf6 Nxf6 30. c7 b3 31. axb3 Na6 32. Kb1 Nb4
         }
     })
 
+    it("should throw when black pieces don't mirror white pieces", () => {
+        // White back rank is RNBQKBNR but black back rank is rnbkqbnr (swapped king/queen)
+        const fen = "rnbkqbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+        assert.throws(() => {
+            Chess960.detectStartPosition(fen)
+        })
+    })
+
+    it("should throw when white pawns are not on second rank", () => {
+        const fen = "rnbqkbnr/pppppppp/8/8/8/PPPPPPPP/8/RNBQKBNR w KQkq - 0 1"
+        assert.throws(() => {
+            Chess960.detectStartPosition(fen)
+        })
+    })
+
+    it("should throw when black pawns are not on seventh rank", () => {
+        const fen = "rnbqkbnr/8/pppppppp/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+        assert.throws(() => {
+            Chess960.detectStartPosition(fen)
+        })
+    })
+
     it("should not castle in standard chess", function () {
         const standard = new Chess("nqnrkbbr/pppppppp/8/8/8/8/PPPPPPPP/NQNRKBBR w KQkq - 0 1")
         assert.false(standard.chess960())
