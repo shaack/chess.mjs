@@ -103,6 +103,31 @@ N3xd4 exd4 28. Bxd4 Nac5 29. Bxf6 Nxf6 30. c7 b3 31. axb3 Na6 32. Kb1 Nb4
         assert.equal(chess960_2.fen(), "bnrqnkrb/pppppppp/8/8/8/8/PPPPPPPP/BNRQNRKB b kq - 1 1")
     })
 
+    it("should do a queen side castling in chess960 with start position 604", function () {
+        const fen = Chess960.generateStartPosition(604)
+        assert.equal(fen, "rbqnkrbn/pppppppp/8/8/8/8/PPPPPPPP/RBQNKRBN w KQkq - 0 1")
+        const chess960 = new Chess(fen, {chess960: true})
+        assert.true(chess960.chess960())
+        assert.true(chess960.move("d3"))
+        assert.true(chess960.move("d6"))
+        assert.true(chess960.move("Ne3")) // Nd1-e3, clears d1
+        assert.true(chess960.move("e6"))
+        assert.true(chess960.move("c3"))
+        assert.true(chess960.move("c6"))
+        assert.true(chess960.move("Bc2")) // Bb1-c2, clears b1
+        assert.true(chess960.move("f6"))
+        assert.true(chess960.move("Qd2")) // Qc1-d2, clears c1
+        assert.true(chess960.move("g6"))
+        // White castles queenside: King e1→c1, Rook a1→d1
+        console.log(chess960.moves())
+        assert.true(chess960.move("O-O-O"))
+        assert.equal(chess960.fen(), "rbqnkrbn/pp5p/2ppppp1/8/8/2PPN3/PPBQPPPP/2KR1RBN b kq - 1 6")
+        // verify game continues after castling
+        assert.true(chess960.move("b6"))
+        assert.true(chess960.move("a3"))
+        assert.equal(chess960.fen(), "rbqnkrbn/p6p/1pppppp1/8/8/P1PPN3/1PBQPPPP/2KR1RBN b kq - 0 7")
+    })
+
     it("should not castle in standard chess", function () {
         const standard = new Chess("nqnrkbbr/pppppppp/8/8/8/8/PPPPPPPP/NQNRKBBR w KQkq - 0 1")
         assert.false(standard.chess960())
