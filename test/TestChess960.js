@@ -128,6 +128,15 @@ N3xd4 exd4 28. Bxd4 Nac5 29. Bxf6 Nxf6 30. c7 b3 31. axb3 Na6 32. Kb1 Nb4
         assert.equal(chess960.fen(), "rbqnkrbn/p6p/1pppppp1/8/8/P1PPN3/1PBQPPPP/2KR1RBN b kq - 0 7")
     })
 
+    it("should detect the correct start position id from a FEN", () => {
+        chess960StartPositions.forEach((position, index) => {
+            assert.equal(Chess960.detectStartPosition(position), index)
+        })
+        // spot check specific positions
+        assert.equal(Chess960.detectStartPosition("rbqnkrbn/pppppppp/8/8/8/8/PPPPPPPP/RBQNKRBN w KQkq - 0 1"), 604)
+        assert.equal(Chess960.detectStartPosition("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"), 518)
+    })
+
     it("should not castle in standard chess", function () {
         const standard = new Chess("nqnrkbbr/pppppppp/8/8/8/8/PPPPPPPP/NQNRKBBR w KQkq - 0 1")
         assert.false(standard.chess960())

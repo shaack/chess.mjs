@@ -86,4 +86,80 @@ export class Chess960 {
         return `${blackRank}/pppppppp/8/8/8/8/PPPPPPPP/${whiteRank} w ${castlingRights} - 0 1`;
     }
 
+    static detectStartPosition(fen) {
+        // Extract the white first rank from the FEN
+        const whiteRank = fen.split('/')[7].split(' ')[0]
+        if (whiteRank.length !== 8) {
+            throw new Error(`Invalid FEN for Chess960 detection: ${fen}`)
+        }
+        const position = whiteRank.split('')
+
+        // Step 1: Find bishops
+        let lightSquareBishop = -1
+        let darkSquareBishop = -1
+        for (let i = 0; i < 8; i++) {
+            if (position[i] === 'B') {
+                if (i % 2 === 1) {
+                    lightSquareBishop = (i - 1) / 2
+                } else {
+                    darkSquareBishop = i / 2
+                }
+            }
+        }
+        if (lightSquareBishop === -1 || darkSquareBishop === -1) {
+            throw new Error(`Invalid Chess960 position: bishops not found on expected squares`)
+        }
+
+        // Step 2: Find queen position among non-bishop squares
+        let emptySquares = []
+        for (let i = 0; i < 8; i++) {
+            if (position[i] !== 'B') {
+                emptySquares.push(i)
+            }
+        }
+        let queenPosition = -1
+        for (let i = 0; i < emptySquares.length; i++) {
+            if (position[emptySquares[i]] === 'Q') {
+                queenPosition = i
+                break
+            }
+        }
+        if (queenPosition === -1) {
+            throw new Error(`Invalid Chess960 position: queen not found`)
+        }
+
+        // Step 3: Find knight pattern among remaining squares (after removing bishops and queen)
+        const knightPatterns = [
+            [0, 1], [0, 2], [0, 3], [0, 4],
+            [1, 2], [1, 3], [1, 4],
+            [2, 3], [2, 4],
+            [3, 4]
+        ]
+        emptySquares = []
+        for (let i = 0; i < 8; i++) {
+            if (position[i] !== 'B' && position[i] !== 'Q') {
+                emptySquares.push(i)
+            }
+        }
+        let knightIndices = []
+        for (let i = 0; i < emptySquares.length; i++) {
+            if (position[emptySquares[i]] === 'N') {
+                knightIndices.push(i)
+            }
+        }
+        let knightPatternIndex = -1
+        for (let i = 0; i < knightPatterns.length; i++) {
+            if (knightPatterns[i][0] === knightIndices[0] && knightPatterns[i][1] === knightIndices[1]) {
+                knightPatternIndex = i
+                break
+            }
+        }
+        if (knightPatternIndex === -1) {
+            throw new Error(`Invalid Chess960 position: knight pattern not found`)
+        }
+
+        // Reconstruct the ID: id = lightSquareBishop + 4 * darkSquareBishop + 16 * queenPosition + 96 * knightPatternIndex
+        return lightSquareBishop + 4 * darkSquareBishop + 16 * queenPosition + 96 * knightPatternIndex
+    }
+
 }
