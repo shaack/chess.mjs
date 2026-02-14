@@ -686,7 +686,9 @@ export const Chess = function (fen, options) {
             move.promotion = promotion
         }
 
-        if (board[to]) {
+        if (flags & (BITS.KSIDE_CASTLE | BITS.QSIDE_CASTLE)) {
+            // Don't set captured for castling (in chess960, to=rook square)
+        } else if (board[to]) {
             move.captured = board[to].type
         } else if (flags & BITS.EP_CAPTURE) {
             move.captured = PAWN
@@ -859,7 +861,7 @@ export const Chess = function (fen, options) {
                             path_clear_for_rook(rookFrom, rookTo) &&
                             king_path_safe(kTo)
                         ) {
-                            add_move(board, moves, kFrom, kTo, BITS.KSIDE_CASTLE)
+                            add_move(board, moves, kFrom, rookFrom, BITS.KSIDE_CASTLE)
                         }
                     }
 
@@ -873,7 +875,7 @@ export const Chess = function (fen, options) {
                             path_clear_for_rook(rookFromQ, rookToQ) &&
                             king_path_safe(kToQ)
                         ) {
-                            add_move(board, moves, kFrom, kToQ, BITS.QSIDE_CASTLE)
+                            add_move(board, moves, kFrom, rookFromQ, BITS.QSIDE_CASTLE)
                         }
                     }
                 } else {
@@ -1146,61 +1148,27 @@ export const Chess = function (fen, options) {
         var them = swap_color(us)
         push(move)
 
-        // Special handling for Chess960 castling where the king may not move (rook-move-only)
-        var is960Castle = isChess960 && (move.flags & (BITS.KSIDE_CASTLE | BITS.QSIDE_CASTLE)) && board[move.from] && board[move.from].type === KING
+        // Chess960 castling: move.to is the rook's square (king "captures" own rook)
+        var is960Castle = isChess960 && (move.flags & (BITS.KSIDE_CASTLE | BITS.QSIDE_CASTLE))
         if (is960Castle) {
             var rankSide = rank(move.from)
             var isK = !!(move.flags & BITS.KSIDE_CASTLE)
-            var rookFromC = isK ? ROOKS[us][1].square : ROOKS[us][0].square
-            var rookToC = isK
+            var kingTo = isK
+                ? (rankSide === RANK_1 ? SQUARE_MAP.g1 : SQUARE_MAP.g8)
+                : (rankSide === RANK_1 ? SQUARE_MAP.c1 : SQUARE_MAP.c8)
+            var rookTo = isK
                 ? (rankSide === RANK_1 ? SQUARE_MAP.f1 : SQUARE_MAP.f8)
                 : (rankSide === RANK_1 ? SQUARE_MAP.d1 : SQUARE_MAP.d8)
-
-            // Handle different Chess960 castling scenarios
-            if (move.to !== move.from) {
-                // King actually moves
-                if (rookFromC === move.to) {
-                    // Rook sits on king's destination (transposition castling)
-                    // This is often a swap: king and rook exchange positions
-                    var kingPiece = board[move.from]
-                    var rookPiece = board[rookFromC]
-                    // Place both pieces at their destinations
-                    board[move.to] = kingPiece
-                    board[rookToC] = rookPiece
-                    // Only clear squares that aren't destinations
-                    // If rookToC === move.from, it's a perfect swap, no clearing needed
-                    // Otherwise clear the squares that are now empty
-                    if (rookToC !== move.from) {
-                        board[move.from] = null
-                    }
-                    if (rookFromC !== move.to && rookFromC !== rookToC && rookFromC !== move.from) {
-                        board[rookFromC] = null
-                    }
-                } else if (rookFromC === move.from) {
-                    // Rook and king start on same square
-                    // Move king first
-                    board[move.to] = board[move.from]
-                    board[move.from] = null
-                    // Now place the rook at its destination (which might be the same square)
-                    if (rookToC !== move.from) {
-                        // Rook needs to move to a different square
-                        board[rookToC] = {type: ROOK, color: us}
-                    } else {
-                        // Rook stays at the same square where king and rook started
-                        board[rookFromC] = {type: ROOK, color: us}
-                    }
-                } else {
-                    // Normal case - king and rook on different squares, neither on each other's destination
-                    // Move king
-                    board[move.to] = board[move.from]
-                    board[move.from] = null
-                    // Rook will be moved in the section below (lines 1196-1223)
-                }
-            } else {
-                // Rook-move-only castling: king stays in place, only move rook
-                board[rookToC] = board[rookFromC]
-                board[rookFromC] = null
-            }
+            // Save pieces, clear originals, place at destinations
+            var kingPiece = board[move.from]
+            var rookPiece = board[move.to]
+            board[move.from] = null
+            board[move.to] = null
+            board[kingTo] = kingPiece
+            board[rookTo] = rookPiece
+            // Update king tracking and clear castling rights
+            kings[us] = kingTo
+            castling[us] = ''
         } else {
             board[move.to] = board[move.from]
             board[move.from] = null
@@ -1220,52 +1188,21 @@ export const Chess = function (fen, options) {
             board[move.to] = {type: move.promotion, color: us}
         }
 
-        /* if we moved the king */
-        if (board[move.to] && board[move.to].type === KING) {
+        /* if we moved the king (standard chess only; chess960 castling handled above) */
+        if (!is960Castle && board[move.to] && board[move.to].type === KING) {
             kings[board[move.to].color] = move.to
 
-            /* if we castled, move the rook to its final square (when king actually moved) */
+            /* if we castled, move the rook to its final square */
             if (move.flags & BITS.KSIDE_CASTLE) {
-                if (isChess960) {
-                    // If the king didn't move (rook-move-only), this was already handled above
-                    if (move.to !== move.from) {
-                        var rTo = (rank(move.to) === RANK_1 ? SQUARE_MAP.f1 : SQUARE_MAP.f8)
-                        var rFrom = ROOKS[us][1].square
-                        // Only move rook if:
-                        // 1. It wasn't already handled above (when rook and king started on same square)
-                        // 2. The rook is not already at its destination
-                        // 3. The destination is empty or doesn't have a rook already
-                        if (rFrom !== move.from && rFrom !== rTo && (board[rTo] == null || (board[rTo] && board[rTo].type !== ROOK))) {
-                            board[rTo] = board[rFrom]
-                            board[rFrom] = null
-                        }
-                    }
-                } else {
-                    var castling_to = move.to - 1
-                    var castling_from = move.to + 1
-                    board[castling_to] = board[castling_from]
-                    board[castling_from] = null
-                }
+                var castling_to = move.to - 1
+                var castling_from = move.to + 1
+                board[castling_to] = board[castling_from]
+                board[castling_from] = null
             } else if (move.flags & BITS.QSIDE_CASTLE) {
-                if (isChess960) {
-                    if (move.to !== move.from) {
-                        var rToQ = (rank(move.to) === RANK_1 ? SQUARE_MAP.d1 : SQUARE_MAP.d8)
-                        var rFromQ = ROOKS[us][0].square
-                        // Only move rook if:
-                        // 1. It wasn't already handled above (when rook and king started on same square)
-                        // 2. The rook is not already at its destination
-                        // 3. The destination is empty or doesn't have a rook already
-                        if (rFromQ !== move.from && rFromQ !== rToQ && (board[rToQ] == null || (board[rToQ] && board[rToQ].type !== ROOK))) {
-                            board[rToQ] = board[rFromQ]
-                            board[rFromQ] = null
-                        }
-                    }
-                } else {
-                    var castling_to = move.to + 1
-                    var castling_from = move.to - 2
-                    board[castling_to] = board[castling_from]
-                    board[castling_from] = null
-                }
+                var castling_to = move.to + 1
+                var castling_from = move.to - 2
+                board[castling_to] = board[castling_from]
+                board[castling_from] = null
             }
 
             /* turn off castling */
@@ -1341,62 +1278,25 @@ export const Chess = function (fen, options) {
         var us = turn
         var them = swap_color(turn)
 
-        // For Chess960 castling, we need to handle rook restoration first in some cases
+        // Chess960 castling undo: move.to is the rook's original square
         var is960CastleUndo = isChess960 && (move.flags & (BITS.KSIDE_CASTLE | BITS.QSIDE_CASTLE))
 
         if (is960CastleUndo) {
-            // Handle Chess960 castling undo specially
-            var rFromU, rToU
-            if (move.flags & BITS.KSIDE_CASTLE) {
-                rFromU = ROOKS[us][1].square
-                rToU = (rank(move.to) === RANK_1 ? SQUARE_MAP.f1 : SQUARE_MAP.f8)
-            } else {
-                rFromU = ROOKS[us][0].square
-                rToU = (rank(move.to) === RANK_1 ? SQUARE_MAP.d1 : SQUARE_MAP.d8)
-            }
-
-            // Check if this was a transposition castle (rook at king's destination)
-            var wasTransposition = rFromU === move.to
-
-            if (move.from === move.to) {
-                // Rook-move-only castling - only restore rook
-                if (rFromU !== rToU) {
-                    board[rFromU] = board[rToU]
-                    board[rToU] = null
-                }
-            } else if (wasTransposition) {
-                // King and rook swapped positions - restore both carefully
-                // After castling: board[move.to] has king, board[rToU] has rook
-                // Need to restore: king to move.from, rook to move.to (rFromU)
-                var kingPiece = board[move.to]
-                var rookPiece = board[rToU]
-                board[move.from] = kingPiece
-                board[rFromU] = rookPiece
-                // Only clear squares if they aren't being used by the restored pieces
-                if (move.to !== rFromU) {
-                    board[move.to] = null
-                }
-                if (rToU !== move.from && rToU !== rFromU) {
-                    board[rToU] = null
-                }
-            } else if (rFromU === move.from) {
-                // King and rook started on same square
-                board[move.from] = board[move.to]
-                board[move.to] = null
-                // Rook was placed separately, may need to be removed
-                if (rToU !== move.from && board[rToU] && board[rToU].type === ROOK) {
-                    board[rToU] = null
-                }
-            } else {
-                // Normal Chess960 castle - undo king move first
-                board[move.from] = board[move.to]
-                board[move.to] = null
-                // Then restore rook if it moved
-                if (rFromU !== rToU) {
-                    board[rFromU] = board[rToU]
-                    board[rToU] = null
-                }
-            }
+            var rankSide = rank(move.from)
+            var isK = !!(move.flags & BITS.KSIDE_CASTLE)
+            var kingTo = isK
+                ? (rankSide === RANK_1 ? SQUARE_MAP.g1 : SQUARE_MAP.g8)
+                : (rankSide === RANK_1 ? SQUARE_MAP.c1 : SQUARE_MAP.c8)
+            var rookTo = isK
+                ? (rankSide === RANK_1 ? SQUARE_MAP.f1 : SQUARE_MAP.f8)
+                : (rankSide === RANK_1 ? SQUARE_MAP.d1 : SQUARE_MAP.d8)
+            // Save pieces from current positions, clear, restore to originals
+            var kingPiece = board[kingTo]
+            var rookPiece = board[rookTo]
+            board[kingTo] = null
+            board[rookTo] = null
+            board[move.from] = kingPiece  // king back to original square
+            board[move.to] = rookPiece    // rook back to original square
         } else {
             // Standard chess or non-castling move
             if (board[move.to]) {
