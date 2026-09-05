@@ -661,10 +661,12 @@ export const Chess = function (fen, options) {
                 var sq = (rk << 4) + f
                 var p = board[sq]
                 if (p && p.type === ROOK && p.color === color) {
-                    if (f < file(ksq)) {
-                        left_rook = sq
-                    } else if (f > file(ksq) && right_rook === null) {
-                        right_rook = sq
+                    // X-FEN: KQkq refers to the OUTERMOST rooks, relevant when a
+                    // promoted rook stands between the castling rook and the king
+                    if (f < file(ksq) && left_rook === null) {
+                        left_rook = sq // leftmost
+                    } else if (f > file(ksq)) {
+                        right_rook = sq // rightmost
                     }
                 }
             }

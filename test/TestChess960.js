@@ -422,4 +422,21 @@ N3xd4 exd4 28. Bxd4 Nac5 29. Bxf6 Nxf6 30. c7 b3 31. axb3 Na6 32. Kb1 Nb4
         const castleB = gameB.moves({verbose: true}).find(m => m.san === "O-O-O")
         assert.true(!castleB) // blocked in the start position
     })
+
+    it("should castle with the outermost rook (X-FEN), not a promoted rook in between", function () {
+        // A promoted rook on g1 stands between the king and the castling rook
+        // on h1. X-FEN "K" refers to the outermost rook, so the g1 rook blocks
+        // kingside castling. Selecting the innermost rook would wrongly allow
+        // castling with the promoted rook.
+        const kside = new Chess("4k3/8/8/8/8/8/8/4K1RR w K - 0 1", {chess960: true})
+        assert.true(!kside.moves().includes("O-O"))
+        // same on the queenside: promoted rook b1, castling rook a1
+        const qside = new Chess("4k3/8/8/8/8/8/8/RR2K3 w Q - 0 1", {chess960: true})
+        assert.true(!qside.moves().includes("O-O-O"))
+        // without the blocker, castling with the outer rook works
+        const free = new Chess("4k3/8/8/8/8/8/8/R3K3 w Q - 0 1", {chess960: true})
+        assert.true(!!free.move("O-O-O"))
+        assert.equal(free.get("c1").type, "k")
+        assert.equal(free.get("d1").type, "r")
+    })
 })
