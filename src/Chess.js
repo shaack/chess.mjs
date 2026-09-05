@@ -116,15 +116,21 @@ const SQUARE_MAP = {
     a1: 112, b1: 113, c1: 114, d1: 115, e1: 116, f1: 117, g1: 118, h1: 119
 }
 
-const ROOKS = {
-    w: [
-        {square: SQUARE_MAP.a1, flag: BITS.QSIDE_CASTLE},
-        {square: SQUARE_MAP.h1, flag: BITS.KSIDE_CASTLE},
-    ],
-    b: [
-        {square: SQUARE_MAP.a8, flag: BITS.QSIDE_CASTLE},
-        {square: SQUARE_MAP.h8, flag: BITS.KSIDE_CASTLE},
-    ],
+// Default rook squares for standard chess. Every Chess instance gets its own
+// mutable copy (see the constructor): sharing this at module level corrupted
+// concurrent Chess960 instances, because init_rooks() of one game overwrote
+// the rook squares castling generation of all other games relied on.
+function defaultRooks() {
+    return {
+        w: [
+            {square: SQUARE_MAP.a1, flag: BITS.QSIDE_CASTLE},
+            {square: SQUARE_MAP.h1, flag: BITS.KSIDE_CASTLE},
+        ],
+        b: [
+            {square: SQUARE_MAP.a8, flag: BITS.QSIDE_CASTLE},
+            {square: SQUARE_MAP.h8, flag: BITS.KSIDE_CASTLE},
+        ],
+    }
 }
 
 const PARSER_STRICT = 0
@@ -300,6 +306,7 @@ export const Chess = function (fen, options) {
     var history = []
     var header = {}
     var comments = {}
+    var ROOKS = defaultRooks() // per instance, updated by init_rooks() in Chess960
 
     var isChess960 = !!(options && options.chess960)
 
@@ -641,7 +648,8 @@ export const Chess = function (fen, options) {
     }
 
     function init_rooks() {
-        // if (!isChess960) return
+        // standard chess always castles with the corner rooks, keep the defaults
+        if (!isChess960) return
         function set_for(color) {
             // find king and rooks on back rank
             var ksq = kings[color]

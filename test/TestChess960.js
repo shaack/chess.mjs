@@ -391,4 +391,35 @@ N3xd4 exd4 28. Bxd4 Nac5 29. Bxf6 Nxf6 30. c7 b3 31. axb3 Na6 32. Kb1 Nb4
         assert.equal(chess.get("g1").type, "k")
         assert.equal(chess.get("f1").type, "r")
     })
+
+    it("should keep castling rook squares per instance (no cross-instance corruption)", function () {
+        // Regression: ROOKS was a mutable module-level object, so loading any
+        // other position rewired the rook squares of all existing instances.
+        // In a live game (chessmail 6482b31aed6296a7) O-O-O was then executed
+        // with the OTHER game's rook square as target: the king moved to c1
+        // but the own rook stayed on a1 (corrupt board "R1K4R").
+        const gameA = new Chess("rbbnqnkr/pppppppp/8/8/8/8/PPPPPPPP/RBBNQNKR w KQkq - 0 1", {chess960: true})
+        const setup = ["b3", "e5", "Bb2", "c5", "c4", "d6", "f3", "Nfe6", "Nf2", "Nd4",
+            "e3", "N4e6", "Ng3", "g6", "Bc2", "Ng7", "Qe2", "Nde6", "Ng4", "Qe7",
+            "Nh6+", "Kf8", "f4", "exf4", "exf4", "f5"]
+        for (const san of setup) {
+            assert.true(gameA.move(san))
+        }
+        // a second instance with different rook files, loaded "in parallel"
+        const gameB = new Chess("qrbknnbr/pppppppp/8/8/8/8/PPPPPPPP/QRBKNNBR w KQkq - 0 1", {chess960: true})
+        assert.equal(gameB.fen(), "qrbknnbr/pppppppp/8/8/8/8/PPPPPPPP/QRBKNNBR w KQkq - 0 1")
+        // gameA must still castle with ITS rook (a1 -> d1, king g1 -> c1)
+        const castle = gameA.move("O-O-O")
+        assert.true(!!castle)
+        assert.equal(castle.to, "a1") // rook's square, not gameB's b1
+        assert.equal(gameA.fen(), "rbb2k1r/pp2q1np/3pn1pN/2p2p2/2P2P2/1P4N1/PBBPQ1PP/2KR3R b - - 1 14")
+        // and the game continues like the real one, including Rhe1+
+        assert.true(gameA.move("Nd4"))
+        assert.true(gameA.move("Qxe7+"))
+        assert.true(gameA.move("Kxe7"))
+        assert.true(gameA.move("Rhe1+"))
+        // gameB is unaffected as well: its queenside rook is on b1
+        const castleB = gameB.moves({verbose: true}).find(m => m.san === "O-O-O")
+        assert.true(!castleB) // blocked in the start position
+    })
 })
