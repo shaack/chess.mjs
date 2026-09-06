@@ -203,4 +203,29 @@ describe("TestChess", function () {
         assert.true(chess.move("e4"))
     })
 
+    it("should expose the chess.js 0.9.x public constants on every instance", function () {
+        // chess.js 0.9.x had WHITE..KING, SQUARES and FLAGS on the instance;
+        // code migrating from chess.js relies on that (a chessmail server
+        // timeout handler reading myChess.SQUARES crashed after the switch)
+        const chess = new Chess()
+        assert.equal(chess.WHITE, "w")
+        assert.equal(chess.BLACK, "b")
+        assert.equal(chess.PAWN, "p")
+        assert.equal(chess.KNIGHT, "n")
+        assert.equal(chess.BISHOP, "b")
+        assert.equal(chess.ROOK, "r")
+        assert.equal(chess.QUEEN, "q")
+        assert.equal(chess.KING, "k")
+        assert.equal(chess.SQUARES.length, 64)
+        assert.equal(chess.SQUARES[0], "a8")
+        assert.equal(chess.SQUARES[63], "h1")
+        assert.equal(chess.FLAGS.KSIDE_CASTLE, "k")
+        // per-instance copies: mutating one instance must not affect another
+        const other = new Chess()
+        chess.SQUARES[0] = "corrupted"
+        chess.FLAGS.NORMAL = "corrupted"
+        assert.equal(other.SQUARES[0], "a8")
+        assert.equal(other.FLAGS.NORMAL, "n")
+    })
+
 })

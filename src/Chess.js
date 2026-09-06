@@ -1508,6 +1508,25 @@ export const Chess = function (fen, options) {
 
     return {
         /***************************************************************************
+         * PUBLIC CONSTANTS
+         * chess.js 0.9.x exposed these on every instance; keep them for
+         * backward compatibility with code migrating from chess.js (a server
+         * timeout handler reading myChess.SQUARES crashed after the switch).
+         * SQUARES and FLAGS are per-instance copies so a caller mutating them
+         * cannot poison other instances.
+         **************************************************************************/
+        WHITE: WHITE,
+        BLACK: BLACK,
+        PAWN: PAWN,
+        KNIGHT: KNIGHT,
+        BISHOP: BISHOP,
+        ROOK: ROOK,
+        QUEEN: QUEEN,
+        KING: KING,
+        SQUARES: SQUARES.slice(),
+        FLAGS: Object.assign({}, FLAGS),
+
+        /***************************************************************************
          * PUBLIC API
          **************************************************************************/
         load: function (fen) {
