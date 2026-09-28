@@ -51,6 +51,15 @@ describe("TestChessJs1Compat", function () {
         assert.false(chess.isAttacked("e5", "b"))  // no black piece attacks its own pawn's square
         assert.false(chess.isAttacked("a4", "b"))
         assert.false(chess.isAttacked("z9", "w"))
+        // sliding and jumping pieces, and the king
+        const pieces = new Chess("4k3/8/8/8/8/5n2/8/B3K2R w K - 0 1")
+        assert.true(pieces.isAttacked("h8", "w"))   // bishop a1 along the long diagonal
+        assert.true(pieces.isAttacked("h7", "w"))   // rook h1 along the file
+        assert.true(pieces.isAttacked("e2", "w"))   // king e1
+        assert.false(pieces.isAttacked("b1", "w"))  // rook h1 is blocked by the king on e1
+        assert.true(pieces.isAttacked("e1", "b"))   // knight f3 gives check
+        assert.true(pieces.isAttacked("d2", "b"))   // knight f3
+        assert.false(pieces.isAttacked("a1", "b"))
     })
 
     it("should alias loadPgn() and accept strict and newlineChar", () => {
@@ -68,9 +77,19 @@ describe("TestChessJs1Compat", function () {
     it("should accept strict in move()", () => {
         const chess = new Chess()
         assert.equal(chess.move("e2e4", {strict: true}), null)
-        assert.equal(chess.move("e2e4", {strict: false}).san, "e4")
+        assert.equal(chess.move("e4", {strict: true}).san, "e4")   // proper SAN passes strict parsing
+        assert.equal(chess.move("e7e5", {strict: false}).san, "e5")
         // sloppy keeps working and wins over strict when both are given
-        assert.equal(chess.move("e7e5", {sloppy: true, strict: true}).san, "e5")
+        assert.equal(chess.move("g1f3", {sloppy: true, strict: true}).san, "Nf3")
+        assert.equal(chess.move("g8f6", {sloppy: false, strict: false}), null)
+    })
+
+    it("should prefer the old option spelling in load_pgn() when both are given", () => {
+        assert.true(new Chess().loadPgn("1. e2e4 e7e5", {sloppy: true, strict: true}))
+        assert.false(new Chess().loadPgn("1. e2e4 e7e5", {sloppy: false, strict: false}))
+        const chess = new Chess()
+        assert.true(chess.loadPgn('[White "A"]<br><br>1. e4', {newline_char: "<br>", newlineChar: "\n"}))
+        assert.equal(chess.getHeaders().White, "A")
     })
 
     it("should accept maxWidth and newline in pgn()", () => {
@@ -78,6 +97,12 @@ describe("TestChessJs1Compat", function () {
         chess.loadPgn("1. e4 e5 2. Nf3 Nc6 3. Bb5")
         assert.equal(chess.pgn({maxWidth: 10, newline: "|"}), "1. e4 e5|2. Nf3 Nc6|3. Bb5")
         assert.equal(chess.pgn({maxWidth: 10, newline: "|"}), chess.pgn({max_width: 10, newline_char: "|"}))
+        // the old spelling wins when both are given
+        assert.equal(chess.pgn({max_width: 10, maxWidth: 0, newline_char: "|", newline: "#"}), "1. e4 e5|2. Nf3 Nc6|3. Bb5")
+        // newline is also used between header lines
+        chess.setHeader("White", "A")
+        chess.setHeader("Black", "B")
+        assert.true(chess.pgn({newline: "|"}).startsWith('[White "A"]|[Black "B"]||'))
     })
 
     it("should return the chess.js 1.x shape from validateFen()", () => {
