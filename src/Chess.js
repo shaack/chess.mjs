@@ -1506,7 +1506,7 @@ export const Chess = function (fen, options) {
         return nodes
     }
 
-    return {
+    var api = {
         /***************************************************************************
          * PUBLIC CONSTANTS
          * chess.js 0.9.x exposed these on every instance; keep them for
@@ -1649,11 +1649,15 @@ export const Chess = function (fen, options) {
             var newline =
                 typeof options === 'object' && typeof options.newline_char === 'string'
                     ? options.newline_char
-                    : '\n'
+                    : typeof options === 'object' && typeof options.newline === 'string'
+                        ? options.newline // chess.js 1.x spelling
+                        : '\n'
             var max_width =
                 typeof options === 'object' && typeof options.max_width === 'number'
                     ? options.max_width
-                    : 0
+                    : typeof options === 'object' && typeof options.maxWidth === 'number'
+                        ? options.maxWidth // chess.js 1.x spelling
+                        : 0
             var result = []
             var header_exists = false
 
@@ -1795,12 +1799,24 @@ export const Chess = function (fen, options) {
         },
 
         load_pgn: function (pgn, options) {
+            // chess.js 1.x spelling of newline_char
+            if (
+                typeof options === 'object' &&
+                options !== null &&
+                typeof options.newlineChar === 'string' &&
+                !('newline_char' in options)
+            ) {
+                options = Object.assign({}, options, {newline_char: options.newlineChar})
+            }
+
             // allow the user to specify the sloppy move parser to work around over
             // disambiguation bugs in Fritz and Chessbase
             var sloppy =
                 typeof options !== 'undefined' && 'sloppy' in options
                     ? options.sloppy
-                    : false
+                    : typeof options !== 'undefined' && 'strict' in options
+                        ? !options.strict // chess.js 1.x spelling
+                        : false
 
             function mask(str) {
                 return str.replace(/\\/g, '\\')
@@ -2024,7 +2040,9 @@ export const Chess = function (fen, options) {
             var sloppy =
                 typeof options !== 'undefined' && 'sloppy' in options
                     ? options.sloppy
-                    : false
+                    : typeof options !== 'undefined' && 'strict' in options
+                        ? !options.strict // chess.js 1.x spelling
+                        : false
 
             var move_obj = null
 
@@ -2181,4 +2199,59 @@ export const Chess = function (fen, options) {
             })
         },
     }
+
+    /***************************************************************************
+     * chess.js 1.x COMPATIBILITY
+     * camelCase aliases for the methods chess.js 1.x renamed, so code written
+     * against chess.js 1.x runs unchanged where the semantics are the same.
+     * Not emulated: move() and load() keep returning null/false instead of
+     * throwing, moves({verbose: true}) has no lan/before/after fields.
+     **************************************************************************/
+    Object.assign(api, {
+        isCheck: api.in_check,
+        isCheckmate: api.in_checkmate,
+        isStalemate: api.in_stalemate,
+        isDraw: api.in_draw,
+        isInsufficientMaterial: api.insufficient_material,
+        isThreefoldRepetition: api.in_threefold_repetition,
+        isDrawByFiftyMoves: function () {
+            return half_moves >= 100
+        },
+        isGameOver: api.game_over,
+        isAttacked: function (square, color) {
+            if (!(square in SQUARE_MAP)) return false
+            return attacked(color, SQUARE_MAP[square])
+        },
+        moveNumber: function () {
+            return move_number
+        },
+        loadPgn: api.load_pgn,
+        validateFen: function (fen) {
+            var result = validate_fen(fen)
+            return result.valid ? {ok: true} : {ok: false, error: result.error}
+        },
+        squareColor: api.square_color,
+        getComment: api.get_comment,
+        setComment: api.set_comment,
+        removeComment: api.delete_comment,
+        deleteComment: api.delete_comment,
+        getComments: api.get_comments,
+        removeComments: api.delete_comments,
+        deleteComments: api.delete_comments,
+        setHeader: function (key, value) {
+            return set_header([key, value])
+        },
+        getHeaders: function () {
+            return Object.assign({}, header)
+        },
+        removeHeader: function (key) {
+            if (key in header) {
+                delete header[key]
+                return true
+            }
+            return false
+        },
+    })
+
+    return api
 }

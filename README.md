@@ -213,22 +213,32 @@ Everything else, including snake_case method names, the `sloppy` option, comment
 
 ### Coming from chess.js 1.x
 
-chess.js 1.x is a TypeScript rewrite with a different surface. chess.mjs uses the 0.13 names and semantics. The most common translations:
+chess.js 1.x is a TypeScript rewrite that renamed most methods to camelCase. chess.mjs keeps the 0.13 names and adds the 1.x names as aliases on every instance, so both spellings work on the same object. Code written against chess.js 1.x runs unchanged as long as it does not rely on the behaviour listed under "Not emulated".
 
-| chess.js 1.x | chess.mjs |
-|---|---|
-| `isCheck()`, `isCheckmate()`, `isStalemate()`, `isDraw()` | `in_check()`, `in_checkmate()`, `in_stalemate()`, `in_draw()` |
-| `isInsufficientMaterial()`, `isThreefoldRepetition()` | `insufficient_material()`, `in_threefold_repetition()` |
-| `isGameOver()` | `game_over()` |
-| `loadPgn()` | `load_pgn()` |
-| `validateFen()` (exported function) | `chess.validate_fen()` (method) |
-| `squareColor()` | `square_color()` |
-| `getComment()`, `setComment()`, `removeComment()`, `getComments()`, `removeComments()` | `get_comment()`, `set_comment()`, `delete_comment()`, `get_comments()`, `delete_comments()` |
-| `setHeader()`, `getHeaders()` | `header()` |
-| `move()` throws on an illegal move | `move()` returns `null` |
-| `load()` throws on an invalid FEN | `load()` returns `false` |
-| `move(san, {strict: true})` | `move(san, {sloppy: true})` with inverted meaning |
-| `moves({verbose: true})` includes `lan`, `before`, `after` | not included |
+| chess.js 1.x | chess.mjs original | Note |
+|---|---|---|
+| `isCheck()`, `isCheckmate()`, `isStalemate()`, `isDraw()` | `in_check()`, `in_checkmate()`, `in_stalemate()`, `in_draw()` | alias |
+| `isInsufficientMaterial()`, `isThreefoldRepetition()` | `insufficient_material()`, `in_threefold_repetition()` | alias |
+| `isDrawByFiftyMoves()` | no equivalent | added, true when the half-move clock reached 100 |
+| `isGameOver()` | `game_over()` | alias |
+| `isAttacked(square, color)` | no equivalent | added, true when a piece of `color` attacks `square` |
+| `moveNumber()` | no equivalent | added, the full move number of the FEN |
+| `loadPgn(pgn, {strict, newlineChar})` | `load_pgn(pgn, {sloppy, newline_char})` | alias, both option spellings accepted |
+| `move(san, {strict})` | `move(san, {sloppy})` | both option spellings accepted, `strict` is the inverse of `sloppy` |
+| `pgn({maxWidth, newline})` | `pgn({max_width, newline_char})` | both option spellings accepted |
+| `validateFen(fen)` | `validate_fen(fen)` | instance method, returns `{ok: true}` or `{ok: false, error}` like chess.js 1.x |
+| `squareColor(square)` | `square_color(square)` | alias |
+| `getComment()`, `setComment()`, `getComments()` | `get_comment()`, `set_comment()`, `get_comments()` | alias |
+| `removeComment()`, `removeComments()` | `delete_comment()`, `delete_comments()` | alias, `deleteComment()` and `deleteComments()` from the 1.0 betas exist too |
+| `setHeader(key, value)`, `getHeaders()`, `removeHeader(key)` | `header(key, value)` | added, `getHeaders()` returns a copy |
+
+Not emulated:
+
+- `move()` returns `null` on an illegal move and `load()` returns `false` on an invalid FEN. chess.js 1.x throws in both cases. Wrap the calls if you rely on exceptions.
+- The default of the SAN parser is strict, as in chess.js 0.13. chess.js 1.x parses permissively unless `{strict: true}` is given. Pass `{sloppy: true}` or `{strict: false}` where you need permissive parsing.
+- Verbose move objects have no `lan`, `before` and `after` fields.
+- `validateFen` is an instance method, not an exported function.
+- `moves({piece})`, `getCastlingRights()`, `setCastlingRights()`, `findPiece()` and the `skipValidation` and `preserveHeaders` options of `load()` and `clear()` do not exist.
 
 ## API overview
 
@@ -287,6 +297,10 @@ Chess960 helper class, `import {Chess960} from "chess.mjs/src/Chess960.js"`:
 | `Chess960.generateStartPosition([id])` | *new*. FEN of start position `id` (0 to 959), random position without argument. |
 | `Chess960.detectStartPosition(fen)` | *new*. Returns the id of a start position FEN, throws if the FEN is not a Chess960 start position. |
 
+chess.js 1.x aliases, all on the instance, see [Coming from chess.js 1.x](#coming-from-chessjs-1x):
+
+`isCheck()`, `isCheckmate()`, `isStalemate()`, `isDraw()`, `isInsufficientMaterial()`, `isThreefoldRepetition()`, `isDrawByFiftyMoves()`, `isGameOver()`, `isAttacked(square, color)`, `moveNumber()`, `loadPgn(pgn, [options])`, `validateFen(fen)`, `squareColor(square)`, `getComment()`, `setComment(comment)`, `removeComment()`, `deleteComment()`, `getComments()`, `removeComments()`, `deleteComments()`, `setHeader(key, value)`, `getHeaders()`, `removeHeader(key)`.
+
 ## Testing
 
 The tests use [teevi](https://www.npmjs.com/package/teevi) and run in the browser. After `npm install`, open `test/index.html` from a local web server (ES modules do not load from `file://`).
@@ -295,6 +309,7 @@ The suite has three parts:
 
 - `test/TestChess.js` covers the chess.js behaviour that chessmail relies on, such as PGN with variations and comments, and non-standard PGNs.
 - `test/TestChess960.js` covers start position generation and detection for all 960 positions, and the castling edge cases described above, including per-instance castling rook squares and the outermost-rook rule.
+- `test/TestChessJs1Compat.js` covers the chess.js 1.x aliases and option spellings.
 - `test/TestChessmailGames.js` replays 1947 real, anonymized games from chessmail.de, among them every Chess960 game played there so far, and compares the resulting FEN with the FEN the production server stored when the game ended. The stored FENs of the older games were written by chess.js 0.9.3, so this checks chess.mjs against an independent implementation. The fixture was validated once against 19263 production games with zero mismatches. It is part of the repository but excluded from the npm package.
 
 ## License
